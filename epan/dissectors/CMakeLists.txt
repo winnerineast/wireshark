@@ -342,6 +342,7 @@ set(DISSECTOR_PUBLIC_HEADERS
 	packet-epmd.h
 	packet-ess.h
 	packet-eth.h
+	packet-f1ap.h
 	packet-f5ethtrailer.h
 	packet-fc.h
 	packet-fcbls.h
@@ -2053,7 +2054,7 @@ CHECKAPI(
 	SWITCHES
 	  --group abort
 	  --group termoutput:5 --summary-group termoutput
-	  --build --file ${CHECKAPI_FILE_LIST}
+	  --file ${CHECKAPI_FILE_LIST}
 	SOURCES
 	  ${DISSECTOR_SUPPORT_SRC}
 	  ${DISSECTOR_HEADERS}

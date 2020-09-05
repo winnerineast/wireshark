@@ -30,6 +30,7 @@
 #include "packet-s1ap.h"
 #include "packet-ranap.h"
 #include "packet-ntp.h"
+#include "packet-f1ap.h"
 
 #ifdef _MSC_VER
 /* disable: "warning C4146: unary minus operator applied to unsigned type, result still unsigned" */
@@ -65,6 +66,11 @@ static int hf_xnap_MeasurementsToActivate_M5 = -1;
 static int hf_xnap_MeasurementsToActivate_LoggingM1FromEventTriggered = -1;
 static int hf_xnap_MeasurementsToActivate_M6 = -1;
 static int hf_xnap_MeasurementsToActivate_M7 = -1;
+static int hf_xnap_ReportCharacteristics_PRBPeriodic = -1;
+static int hf_xnap_ReportCharacteristics_TNLCapacityIndPeriodic = -1;
+static int hf_xnap_ReportCharacteristics_CompositeAvailableCapacityPeriodic = -1;
+static int hf_xnap_ReportCharacteristics_NumberOfActiveUEs = -1;
+static int hf_xnap_ReportCharacteristics_Reserved = -1;
 #include "packet-xnap-hf.c"
 
 /* Initialize the subtree pointers */
@@ -94,6 +100,8 @@ static gint ett_xnap_TDDULDLConfigurationCommonNR = -1;
 static gint ett_xnap_UERLFReportContainerLTE = -1;
 static gint ett_xnap_UERLFReportContainerNR = -1;
 static gint ett_xnap_burstArrivalTime = -1;
+static gint ett_xnap_ReportCharacteristics = -1;
+static gint ett_xnap_NRCellPRACHConfig = -1;
 #include "packet-xnap-ett.c"
 
 enum {
@@ -385,6 +393,26 @@ void proto_register_xnap(void) {
       { "M7", "xnap.MeasurementsToActivate.M7",
         FT_BOOLEAN, 8, TFS(&xnap_tfs_activate_do_not_activate), 0x01,
         NULL, HFILL }},
+    { &hf_xnap_ReportCharacteristics_PRBPeriodic,
+      { "PRBPeriodic", "xnap.ReportCharacteristics.PRBPeriodic",
+        FT_BOOLEAN, 32, TFS(&tfs_requested_not_requested), 0x80000000,
+        NULL, HFILL }},
+    { &hf_xnap_ReportCharacteristics_TNLCapacityIndPeriodic,
+      { "TNLCapacityIndPeriodic", "xnap.ReportCharacteristics.TNLCapacityIndPeriodic",
+        FT_BOOLEAN, 32, TFS(&tfs_requested_not_requested), 0x40000000,
+        NULL, HFILL }},
+    { &hf_xnap_ReportCharacteristics_CompositeAvailableCapacityPeriodic,
+      { "CompositeAvailableCapacityPeriodic", "xnap.ReportCharacteristics.CompositeAvailableCapacityPeriodic",
+        FT_BOOLEAN, 32, TFS(&tfs_requested_not_requested), 0x20000000,
+        NULL, HFILL }},
+    { &hf_xnap_ReportCharacteristics_NumberOfActiveUEs,
+      { "NumberOfActiveUEs", "xnap.ReportCharacteristics.NumberOfActiveUEs",
+        FT_BOOLEAN, 32, TFS(&tfs_requested_not_requested), 0x10000000,
+        NULL, HFILL }},
+    { &hf_xnap_ReportCharacteristics_Reserved,
+      { "Reserved", "xnap.ReportCharacteristics.Reserved",
+        FT_UINT32, BASE_HEX, NULL, 0x0fffffff,
+        NULL, HFILL }},
 #include "packet-xnap-hfarr.c"
   };
 
@@ -416,6 +444,8 @@ void proto_register_xnap(void) {
     &ett_xnap_UERLFReportContainerLTE,
     &ett_xnap_UERLFReportContainerNR,
     &ett_xnap_burstArrivalTime,
+    &ett_xnap_ReportCharacteristics,
+    &ett_xnap_NRCellPRACHConfig,
 #include "packet-xnap-ettarr.c"
   };
 
