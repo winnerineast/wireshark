@@ -209,6 +209,9 @@ extern int hf_gsm_a_gm_rac;
 extern int hf_gsm_a_spare_bits;
 extern int hf_gsm_a_lac;
 
+/* Inter protocol filters*/
+extern int hf_3gpp_tmsi;
+
 /* flags for the packet-gsm_a_common routines */
 #define GSM_A_PDU_TYPE_BSSMAP       0  /* BSSAP_PDU_TYPE_BSSMAP i.e. 0 - until split complete at least! */
 #define GSM_A_PDU_TYPE_DTAP         1  /* BSSAP_PDU_TYPE_DTAP i.e. 1   - until split complete at least! */
@@ -744,6 +747,7 @@ guint16 de_sm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 o
 WS_DLL_PUBLIC
 guint16 de_sm_pflow_id(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 guint16 de_sm_tflow_temp(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
+guint16 de_sm_tmgi(tvbuff_t* tvb, proto_tree* tree, packet_info* pinfo, guint32 offset, guint len, gchar* add_string _U_, int string_len _U_);
 guint16 de_time_zone(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 WS_DLL_PUBLIC
 guint16 de_gmm_drx_param(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);

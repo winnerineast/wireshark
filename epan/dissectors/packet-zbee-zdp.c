@@ -1441,7 +1441,7 @@ void proto_register_zbee_zdp(void)
             "Indicates this device is using AC/Mains power.", HFILL }},
 
         { &hf_zbee_zdp_cinfo_idle_rx,
-        { "Rx On When Idle",            "zbee_zdp.cinfo.power", FT_BOOLEAN, 8, NULL, ZBEE_CINFO_IDLE_RX,
+        { "Rx On When Idle",            "zbee_zdp.cinfo.idle_rx", FT_BOOLEAN, 8, NULL, ZBEE_CINFO_IDLE_RX,
             "Indicates the receiver is active when the device is idle.", HFILL }},
 
         { &hf_zbee_zdp_cinfo_security,
@@ -1569,11 +1569,11 @@ void proto_register_zbee_zdp(void)
             NULL, HFILL }},
 
         { &hf_zbee_zdp_power_source_recharge,
-        { "Using Rechargeable Battery", "zbee_zdp.power.source.ac", FT_BOOLEAN, 16, NULL, ZBEE_ZDP_POWER_SOURCE_RECHARGEABLE,
+        { "Using Rechargeable Battery", "zbee_zdp.power.source.recharge", FT_BOOLEAN, 16, NULL, ZBEE_ZDP_POWER_SOURCE_RECHARGEABLE,
             NULL, HFILL }},
 
         { &hf_zbee_zdp_power_source_dispose,
-        { "Using Disposable Battery",  "zbee_zdp.power.source.ac", FT_BOOLEAN, 16, NULL, ZBEE_ZDP_POWER_SOURCE_DISPOSABLE,
+        { "Using Disposable Battery",  "zbee_zdp.power.source.dispose", FT_BOOLEAN, 16, NULL, ZBEE_ZDP_POWER_SOURCE_DISPOSABLE,
             NULL, HFILL }},
 
         { &hf_zbee_zdp_power_level,

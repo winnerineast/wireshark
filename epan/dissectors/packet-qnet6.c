@@ -656,12 +656,12 @@ static const value_string qnet6_layer_vals[] = {
 };
 
 #define QNET_L4_QOS_TYPE_LOADBALANCE  0
-#define QNET_L4_QOS_TYPE_REDUDANT     1
+#define QNET_L4_QOS_TYPE_REDUNDANT    1
 #define QNET_L4_QOS_TYPE_EXCLUSIVE    2
 #define QNET_L4_QOS_TYPE_PREFERRED    3
 static const value_string qnet6_qos_type_vals[] = {
   {QNET_L4_QOS_TYPE_LOADBALANCE, "Load balance"},
-  {QNET_L4_QOS_TYPE_REDUDANT,    "Redudant"},
+  {QNET_L4_QOS_TYPE_REDUNDANT,   "Redundant"},
   {QNET_L4_QOS_TYPE_EXCLUSIVE,   "Exclusive or Sequential"},
   {QNET_L4_QOS_TYPE_PREFERRED,   "Preferred link"},
   {0, NULL}
@@ -2487,7 +2487,6 @@ dissect_qnet6_kif_msgsend_msg_utime(tvbuff_t * tvb, packet_info * pinfo _U_, pro
 {
   int      ret = -1;
   gint     combine_len, left;
-  nstime_t nt;
 
   left = tvb_reported_length_remaining(tvb, *poffset);
 
@@ -2496,12 +2495,11 @@ dissect_qnet6_kif_msgsend_msg_utime(tvbuff_t * tvb, packet_info * pinfo _U_, pro
   *poffset += 2;
   proto_tree_add_item(tree, hf_qnet6_kif_msg_io_utime_curflag, tvb, *poffset, 4, encoding);
   *poffset += 4;
-  nt.nsecs = 0;
-  nt.secs = tvb_get_guint32(tvb, *poffset, encoding);
-  proto_tree_add_time(tree, hf_qnet6_kif_msg_io_utime_actime, tvb, *poffset, 4, &nt);
+  proto_tree_add_item(tree, hf_qnet6_kif_msg_io_utime_actime,
+      tvb, *poffset, 4, ENC_TIME_SECS|encoding);
   *poffset += 4;
-  nt.secs = tvb_get_guint32(tvb, *poffset, encoding);
-  proto_tree_add_time(tree, hf_qnet6_kif_msg_io_utime_modtime, tvb, *poffset, 4, &nt);
+  proto_tree_add_item(tree, hf_qnet6_kif_msg_io_utime_modtime,
+      tvb, *poffset, 4, ENC_TIME_SECS|encoding);
   *poffset += 4;
 
   left -= 2 + 4 + 4 + 4;
@@ -4702,7 +4700,7 @@ proto_register_qnet6(void)
     {&hf_qnet6_kif_vtid_info_tid,
      {"Vtid", "qnet6.kif.msgsend.vtid_info.tid",
       FT_INT32, BASE_DEC, NULL, 0,
-      "essage virtual thread information thread id", HFILL}
+      "Virtual thread information thread id", HFILL}
     },
     {&hf_qnet6_kif_vtid_info_coid,
      {"Coid", "qnet6.kif.msgsend.vtid_info.coid",

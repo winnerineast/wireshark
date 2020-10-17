@@ -1329,6 +1329,7 @@ de_emm_eps_mid(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo,
     guint8    octet;
     const char     *digit_str;
     tvbuff_t *new_tvb;
+    proto_item* ti;
 
     curr_offset = offset;
 
@@ -1360,6 +1361,8 @@ de_emm_eps_mid(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo,
             curr_offset++;
             /* M-TMSI Octet 10 - 13 */
             proto_tree_add_item(tree, hf_nas_eps_emm_m_tmsi, tvb, curr_offset, 4, ENC_BIG_ENDIAN);
+            ti = proto_tree_add_item(tree, hf_3gpp_tmsi, tvb, curr_offset, 4, ENC_BIG_ENDIAN);
+            proto_item_set_hidden(ti);
             /*curr_offset+=4;*/
             break;
         default:
@@ -2356,7 +2359,7 @@ de_emm_ext_emerg_num_list(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U
                                      tvb, curr_offset, 1, ENC_NA, &length);
         curr_offset++;
         if (length > 0) {
-            proto_tree_add_ts_23_038_7bits_item(sub_tree, hf_eps_emm_ext_emerg_num_list_sub_serv_field,
+            proto_tree_add_ts_23_038_7bits_packed_item(sub_tree, hf_eps_emm_ext_emerg_num_list_sub_serv_field,
                                                 tvb, curr_offset<<3, (length<<3)/7);
             curr_offset += length;
         }
@@ -3367,8 +3370,8 @@ de_esm_pdn_addr(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_,
              * contains an IPv6 interface identifier. Bit 8 of octet 4 represents the most significant bit
              * of the IPv6 interface identifier and bit 1 of octet 11 the least significant bit.
              */
-            tvb_memcpy(tvb, (guint8*)&interface_id.bytes[8], offset, 8);
-            proto_tree_add_ipv6(tree, hf_nas_eps_esm_pdn_ipv6_if_id, tvb, offset, 8, &interface_id);
+            tvb_memcpy(tvb, (guint8*)&interface_id.bytes[8], curr_offset, 8);
+            proto_tree_add_ipv6(tree, hf_nas_eps_esm_pdn_ipv6_if_id, tvb, curr_offset, 8, &interface_id);
             curr_offset+=8;
             break;
         case 3:
@@ -3379,8 +3382,8 @@ de_esm_pdn_addr(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_,
              * significant bit. Bit 8 of octet 12 represents the most significant bit of the IPv4 address
              * and bit 1 of octet 15 the least significant bit.
              */
-            tvb_memcpy(tvb, (guint8*)&interface_id.bytes[8], offset, 8);
-            proto_tree_add_ipv6(tree, hf_nas_eps_esm_pdn_ipv6_if_id, tvb, offset, 8, &interface_id);
+            tvb_memcpy(tvb, (guint8*)&interface_id.bytes[8], curr_offset, 8);
+            proto_tree_add_ipv6(tree, hf_nas_eps_esm_pdn_ipv6_if_id, tvb, curr_offset, 8, &interface_id);
             curr_offset+=8;
             proto_tree_add_item(tree, hf_nas_eps_esm_pdn_ipv4, tvb, curr_offset, 4, ENC_BIG_ENDIAN);
             curr_offset+=4;
@@ -3596,7 +3599,7 @@ de_esm_remote_ue_context_list(tvbuff_t *tvb, proto_tree *tree, packet_info *pinf
                 {
                     ws_in6_addr prefix;
                     memset(&prefix, 0, sizeof(prefix));
-                    tvb_memcpy(tvb, (guint8*)&prefix.bytes[0], offset, 8);
+                    tvb_memcpy(tvb, (guint8*)&prefix.bytes[0], curr_offset, 8);
                     proto_tree_add_ipv6(subtree, hf_nas_eps_esm_remote_ue_context_list_ue_context_ipv6_prefix, tvb, curr_offset, 8, &prefix);
                     curr_offset += 8;
                 }
@@ -6946,8 +6949,8 @@ proto_register_nas_eps(void)
     },
     { &hf_nas_eps_emm_m_tmsi,
         { "M-TMSI","nas_eps.emm.m_tmsi",
-        FT_UINT32, BASE_HEX, NULL, 0x0,
-        NULL, HFILL }
+        FT_UINT32, BASE_DEC_HEX, NULL, 0x0,
+        "Global flt 3gpp.tmsi", HFILL }
     },
     { &hf_nas_eps_esm_msg_cont,
         { "ESM message container contents","nas_eps.emm.esm_msg_cont",

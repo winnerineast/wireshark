@@ -419,7 +419,7 @@ extern "C" {
  *
  * For WTAP_ENCAP_USBPCAP, the maximum is 128MiB, as per
  *
- *    https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=15985
+ *    https://gitlab.com/wireshark/wireshark/-/issues/15985
  *
  * We don't want to write out files that specify a maximum packet size
  * greater than 262144 if we don't have to, as software reading those
@@ -682,7 +682,7 @@ struct ieee_802_11a {
  *    http://wifi-insider.com/atheros/turbo.htm
  */
 #define PHDR_802_11A_TURBO_TYPE_NORMAL           0
-#define PHDR_802_11A_TURBO_TYPE_TURBO            1  /* If we don't know wehther it's static or dynamic */
+#define PHDR_802_11A_TURBO_TYPE_TURBO            1  /* If we don't know whether it's static or dynamic */
 #define PHDR_802_11A_TURBO_TYPE_DYNAMIC_TURBO    2
 #define PHDR_802_11A_TURBO_TYPE_STATIC_TURBO     3
 
@@ -1264,7 +1264,7 @@ union wtap_pseudo_header {
  * They may have a time stamp, and should be dissected and displayed
  * just as packets are.
  *
- * We distingiush between "events" and "reports" so that, for example,
+ * We distinguish between "events" and "reports" so that, for example,
  * the packet display can show the delta between a packet and an event
  * but not show the delta between a packet and a report, as the time
  * stamp of a report may not correspond to anything interesting on
@@ -1544,7 +1544,7 @@ typedef struct hashipv6 {
 } hashipv6_t;
 
 /** A struct with lists of resolved addresses.
- *  Used when writing name resoultion blocks (NRB)
+ *  Used when writing name resolutions blocks (NRB)
  */
 typedef struct addrinfo_lists {
     GList      *ipv4_addr_list; /**< A list of resolved hashipv4_t*/
@@ -1653,7 +1653,7 @@ struct file_extension_info {
  *
  * Note that the routine does not have to free the private data pointer on
  * error. The caller takes care of that by calling wtap_close on error.
- * (See https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=8518)
+ * (See https://gitlab.com/wireshark/wireshark/-/issues/8518)
  *
  * However, the caller does have to free the private data pointer when
  * returning WTAP_OPEN_NOT_MINE, since the next file type will be called
@@ -1748,7 +1748,7 @@ struct file_type_subtype_info {
 
     /* the function to open the capture file for writing */
     /* should be NULL is this file type don't have write support */
-    int (*dump_open)(wtap_dumper *, int *);
+    int (*dump_open)(wtap_dumper *, int *, gchar **);
 
     /* if can_write_encap returned WTAP_ERR_CHECK_WSLUA, then this is used instead */
     /* this should be NULL for everyone except Lua-based file writers */
@@ -1770,9 +1770,9 @@ void wtap_init(gboolean load_wiretap_plugins);
  *
  * @param filename Name of the file to open
  * @param type WTAP_TYPE_AUTO for automatic recognize file format or explicit choose format type
- * @param err a positive "errno" value if the capture file can't be opened;
+ * @param[out] err a positive "errno" value if the capture file can't be opened;
  * a negative number, indicating the type of error, on other failures.
- * @param err_info for some errors, a string giving more details of
+ * @param[out] err_info for some errors, a string giving more details of
  * the error
  * @param do_random TRUE if random access to the file will be done,
  * FALSE if not
@@ -2117,12 +2117,14 @@ void wtap_dump_params_cleanup(wtap_dump_params *params);
  * @param compression_type Type of compression to use when writing, if any
  * @param params The per-file information for this file.
  * @param[out] err Will be set to an error code on failure.
+ * @param[out] err_info for some errors, a string giving more details of
+ * the error
  * @return The newly created dumper object, or NULL on failure.
  */
 WS_DLL_PUBLIC
 wtap_dumper* wtap_dump_open(const char *filename, int file_type_subtype,
     wtap_compression_type compression_type, const wtap_dump_params *params,
-    int *err);
+    int *err, gchar **err_info);
 
 /**
  * @brief Creates a dumper for a temporary file.
@@ -2134,12 +2136,14 @@ wtap_dumper* wtap_dump_open(const char *filename, int file_type_subtype,
  * @param compression_type Type of compression to use when writing, if any
  * @param params The per-file information for this file.
  * @param[out] err Will be set to an error code on failure.
+ * @param[out] err_info for some errors, a string giving more details of
+ * the error
  * @return The newly created dumper object, or NULL on failure.
  */
 WS_DLL_PUBLIC
 wtap_dumper* wtap_dump_open_tempfile(char **filenamep, const char *pfx,
     int file_type_subtype, wtap_compression_type compression_type,
-    const wtap_dump_params *params, int *err);
+    const wtap_dump_params *params, int *err, gchar **err_info);
 
 /**
  * @brief Creates a dumper for an existing file descriptor.
@@ -2149,12 +2153,14 @@ wtap_dumper* wtap_dump_open_tempfile(char **filenamep, const char *pfx,
  * @param compression_type Type of compression to use when writing, if any
  * @param params The per-file information for this file.
  * @param[out] err Will be set to an error code on failure.
+ * @param[out] err_info for some errors, a string giving more details of
+ * the error
  * @return The newly created dumper object, or NULL on failure.
  */
 WS_DLL_PUBLIC
 wtap_dumper* wtap_dump_fdopen(int fd, int file_type_subtype,
     wtap_compression_type compression_type, const wtap_dump_params *params,
-    int *err);
+    int *err, gchar **err_info);
 
 /**
  * @brief Creates a dumper for the standard output.
@@ -2163,12 +2169,14 @@ wtap_dumper* wtap_dump_fdopen(int fd, int file_type_subtype,
  * @param compression_type Type of compression to use when writing, if any
  * @param params The per-file information for this file.
  * @param[out] err Will be set to an error code on failure.
+ * @param[out] err_info for some errors, a string giving more details of
+ * the error
  * @return The newly created dumper object, or NULL on failure.
  */
 WS_DLL_PUBLIC
 wtap_dumper* wtap_dump_open_stdout(int file_type_subtype,
     wtap_compression_type compression_type, const wtap_dump_params *params,
-    int *err);
+    int *err, gchar **err_info);
 
 WS_DLL_PUBLIC
 gboolean wtap_dump(wtap_dumper *, const wtap_rec *, const guint8 *,
@@ -2194,7 +2202,7 @@ void wtap_dump_discard_decryption_secrets(wtap_dumper *wdh);
  * shb_hdr, idb_inf and nrb_hdr are not freed by this routine.
  */
 WS_DLL_PUBLIC
-gboolean wtap_dump_close(wtap_dumper *wdh, int *err);
+gboolean wtap_dump_close(wtap_dumper *wdh, int *err, gchar **err_info);
 
 /**
  * Return TRUE if we can write a file out with the given GArray of file
@@ -2289,7 +2297,7 @@ void wtap_deregister_file_type_subtype(const int file_type_subtype);
 WS_DLL_PUBLIC
 int wtap_register_encap_type(const char *description, const char *name);
 
-/*** Cleanup the interal library structures */
+/*** Cleanup the internal library structures */
 WS_DLL_PUBLIC
 void wtap_cleanup(void);
 

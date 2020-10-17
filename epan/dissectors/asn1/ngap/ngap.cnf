@@ -355,7 +355,37 @@ ProtocolExtensionID TYPE = FT_UINT8  DISPLAY = BASE_DEC|BASE_EXT_STRING STRINGS 
 BitRate DISPLAY=BASE_DEC|BASE_UNIT_STRING STRINGS=&units_bit_sec
 
 #.TYPE_ATTR
+MessageIdentifier TYPE = FT_UINT16 DISPLAY = BASE_DEC|BASE_EXT_STRING STRINGS = &lte_rrc_messageIdentifier_vals_ext
+
+#.FN_BODY MessageIdentifier VAL_PTR = &parameter_tvb HF_INDEX = -1
+  tvbuff_t *parameter_tvb = NULL;
+%(DEFAULT_BODY)s
+  if (parameter_tvb) {
+    actx->created_item = proto_tree_add_item(tree, hf_index, parameter_tvb, 0, 2, ENC_BIG_ENDIAN);
+  }
+
+#.FN_BODY SerialNumber VAL_PTR = &parameter_tvb
+  tvbuff_t *parameter_tvb = NULL;
+%(DEFAULT_BODY)s
+  if (parameter_tvb) {
+    proto_tree *subtree = proto_item_add_subtree(actx->created_item, ett_ngap_SerialNumber);
+    proto_tree_add_item(subtree, hf_ngap_SerialNumber_gs, parameter_tvb, 0, 2, ENC_BIG_ENDIAN);
+    proto_tree_add_item(subtree, hf_ngap_SerialNumber_msg_code, parameter_tvb, 0, 2, ENC_BIG_ENDIAN);
+    proto_tree_add_item(subtree, hf_ngap_SerialNumber_upd_nb, parameter_tvb, 0, 2, ENC_BIG_ENDIAN);
+  }
+
+#.TYPE_ATTR
 RepetitionPeriod DISPLAY=BASE_DEC|BASE_UNIT_STRING STRINGS=&units_seconds
+
+#.FN_BODY WarningType VAL_PTR = &parameter_tvb
+  tvbuff_t *parameter_tvb = NULL;
+%(DEFAULT_BODY)s
+  if (parameter_tvb) {
+    proto_tree *subtree = proto_item_add_subtree(actx->created_item, ett_ngap_WarningType);
+    proto_tree_add_item(subtree, hf_ngap_WarningType_value, parameter_tvb, 0, 2, ENC_BIG_ENDIAN);
+    proto_tree_add_item(subtree, hf_ngap_WarningType_emergency_user_alert, parameter_tvb, 0, 2, ENC_BIG_ENDIAN);
+    proto_tree_add_item(subtree, hf_ngap_WarningType_popup, parameter_tvb, 0, 2, ENC_BIG_ENDIAN);
+  }
 
 #.FN_BODY DataCodingScheme VAL_PTR = &parameter_tvb
   tvbuff_t *parameter_tvb = NULL;
@@ -726,10 +756,10 @@ RecommendedCellItem/timeStayedInCell DISPLAY=BASE_DEC|BASE_UNIT_STRING STRINGS=&
 %(DEFAULT_BODY)s
   if (parameter_tvb) {
     static int * const fields[] = {
-      &hf_ngap_NrencyptionAlgorithms_nea1,
-      &hf_ngap_NrencyptionAlgorithms_nea2,
-      &hf_ngap_NrencyptionAlgorithms_nea3,
-      &hf_ngap_NrencyptionAlgorithms_reserved,
+      &hf_ngap_NrencryptionAlgorithms_nea1,
+      &hf_ngap_NrencryptionAlgorithms_nea2,
+      &hf_ngap_NrencryptionAlgorithms_nea3,
+      &hf_ngap_NrencryptionAlgorithms_reserved,
       NULL
     };
     proto_tree *subtree = proto_item_add_subtree(actx->created_item, ett_ngap_NrencryptionAlgorithms);
@@ -1061,6 +1091,18 @@ WLANName TYPE=FT_STRING DISPLAY = STR_UNICODE
   actx->created_item = proto_tree_add_item(tree, hf_index, parameter_tvb, 0, -1, ENC_UTF_8|ENC_NA);
 #.END
 
+#.TYPE_ATTR
+FiveG-TMSI TYPE = FT_UINT32 DISPLAY = BASE_DEC_HEX
+#.FN_BODY FiveG-TMSI VAL_PTR = &parameter_tvb HF_INDEX = -1
+  tvbuff_t *parameter_tvb = NULL;
+  proto_item *ti;
+%(DEFAULT_BODY)s
+  if (parameter_tvb) {
+    actx->created_item = proto_tree_add_item(tree, hf_index, parameter_tvb, 0, 4, ENC_BIG_ENDIAN);
+    ti = proto_tree_add_item(tree, hf_3gpp_tmsi, tvb, 0, 4, ENC_BIG_ENDIAN);
+    proto_item_set_hidden(ti);
+  }
+
 #.ASSIGN_VALUE_TO_TYPE  # NGAP does not have constants assigned to types, they are pure INTEGER
 # ProcedureCode
 
@@ -1305,7 +1347,7 @@ id-LocationReportingAdditionalInfo               ProtocolIE-ID
 id-SourceToTarget-AMFInformationReroute          ProtocolIE-ID
 id-AdditionalULForwardingUPTNLInformation        ProtocolIE-ID
 id-SCTP-TLAs                                     ProtocolIE-ID
-id-DataForwardingResponseERABList                ProtocolIE-ID
+id-SelectedPLMNIdentity                          ProtocolIE-ID
 id-RIMInformationTransfer                        ProtocolIE-ID
 id-GUAMIType                                     ProtocolIE-ID
 id-SRVCCOperationPossible                        ProtocolIE-ID
@@ -1380,7 +1422,7 @@ id-AuthenticatedIndication                       ProtocolIE-ID
 id-TNGFIdentityInformation                       ProtocolIE-ID
 id-TWIFIdentityInformation                       ProtocolIE-ID
 id-UserLocationInformationTWIF                   ProtocolIE-ID
-id-SelectedPLMNIdentity                          ProtocolIE-ID
+id-DataForwardingResponseERABList                ProtocolIE-ID
 id-IntersystemSONConfigurationTransferDL         ProtocolIE-ID
 id-IntersystemSONConfigurationTransferUL         ProtocolIE-ID
 id-SONInformationReport                          ProtocolIE-ID
@@ -1403,6 +1445,9 @@ id-EarlyStatusTransfer-TransparentContainer      ProtocolIE-ID
 id-NotifySourceNGRANNode                         ProtocolIE-ID
 id-ExtendedSliceSupportList                      ProtocolIE-ID
 id-ExtendedTAISliceSupportList                   ProtocolIE-ID
+id-ConfiguredTACIndication                       ProtocolIE-ID
+id-Extended-RANNodeName                          ProtocolIE-ID
+id-Extended-AMFName                              ProtocolIE-ID
 #.END
 
 
@@ -1630,6 +1675,8 @@ UERadioCapabilityID                         N ngap.ies id-UERadioCapabilityID
 UERadioCapability                           N ngap.ies id-UERadioCapability-EUTRA-Format
 EarlyStatusTransfer-TransparentContainer    N ngap.ies id-EarlyStatusTransfer-TransparentContainer
 NotifySourceNGRANNode                       N ngap.ies id-NotifySourceNGRANNode
+Extended-RANNodeName                        N ngap.ies id-Extended-RANNodeName
+Extended-AMFName                            N ngap.ies id-Extended-AMFName
 
 #NGAP-PROTOCOL-EXTENSION
 
@@ -1687,6 +1734,7 @@ DAPSRequestInfo                                        N ngap.extension id-DAPSR
 DAPSResponseInfoList                                   N ngap.extension id-DAPSResponseInfoList
 ExtendedSliceSupportList                               N ngap.extension id-ExtendedSliceSupportList
 ExtendedSliceSupportList                               N ngap.extension id-ExtendedTAISliceSupportList
+ConfiguredTACIndication                                N ngap.extension id-ConfiguredTACIndication
 
 #NGAP-ELEMENTARY-PROCEDURE
 

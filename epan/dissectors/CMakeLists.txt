@@ -117,6 +117,7 @@ set(CLEAN_ASN1_DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-h501.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-hnbap.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-idmp.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-idn.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ilp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-inap.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-isdn-sup.c
@@ -616,6 +617,7 @@ set(DISSECTOR_PUBLIC_HEADERS
 	packet-xmpp-jingle.h
 	packet-xmpp-other.h
 	packet-xmpp-utils.h
+	packet-xnap.h
 	packet-ypbind.h
 	packet-yppasswd.h
 	packet-ypserv.h
@@ -835,6 +837,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-coap.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-collectd.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-componentstatus.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-communityid.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-cops.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-corosync-totemnet.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-corosync-totemsrp.c
@@ -1215,6 +1218,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ieee80211.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ieee802154.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ieee8021ah.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-ieee8021cb.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ieee8023.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ieee802a.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ifcp.c
@@ -1251,6 +1255,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ipoib.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ipos.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ipp.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-ippusb.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ipsec-tcp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ipsec-udp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ipsec.c
@@ -1379,6 +1384,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mausb.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mbim.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mbtcp.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-mc-nmf.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mcpe.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mdp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mdshdr.c
@@ -1433,6 +1439,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mrp-msrp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mrp-mvrp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ms-mms.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-ms-nns.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-msdp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-msn-messenger.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-msnip.c

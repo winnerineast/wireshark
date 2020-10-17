@@ -959,7 +959,7 @@ static const value_string ieee1905_message_type_vals[] = {
   { AP_AUTOCONFIGURATION_WSC_MESSAGE,            "AP autoconfiguration Wi-Fi simple configuration (WSC)" },
   { AP_AUTOCONFIGURATION_RENEW_MESSAGE,          "AP autoconfiguration renew" },
   { IEEE1905_PUSH_BUTTON_EVENT_NOTIFICATION_MESSAGE, "1905 push button event notification" },
-  { IEEE1905_PUSH_BUTTON_JOIN_NOTIFICATION_MESSAGE,  "1905 push button join notificaton" },
+  { IEEE1905_PUSH_BUTTON_JOIN_NOTIFICATION_MESSAGE,  "1905 push button join notification" },
   { HIGHER_LAYER_QUERY_MESSAGE,                  "Higher layer query" },
   { HIGHER_LAYER_RESPONSE_MESSAGE,               "Higher layer response" },
   { INTERFACE_POWER_CHANGE_REQUEST_MESSAGE,      "Interface power change request" },
@@ -980,9 +980,9 @@ static const value_string ieee1905_message_type_vals[] = {
   { AP_METRICS_QUERY_MESSAGE,                    "AP Metrics Query" },
   { AP_METRICS_RESPONSE_MESSAGE,                 "AP Metrics Response" },
   { ASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE,   "Associated STA Link Metrics Query" },
-  { ASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE, "Associated STA Link Metrics Resonse" },
+  { ASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE, "Associated STA Link Metrics Response" },
   { UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE, "Unassociated STA Link Metrics Query" },
-  { UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE, "Unassociated STA Link Metrics Resonse" },
+  { UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE, "Unassociated STA Link Metrics Response" },
   { BEACON_METRICS_QUERY_MESSAGE,                "Beacon Metrics Query" },
   { BEACON_METRICS_REPONSE_METRICS,              "Beacon Metrics Response" },
   { COMBINED_INFRASTRUCTURE_METRICS_MESSAGE,     "Combined Infrastructure Metrics" },
@@ -1118,7 +1118,7 @@ static value_string_ext ieee1905_message_type_vals_ext = VALUE_STRING_EXT_INIT(i
 #define PROFILE_2_ERROR_CODE_ERROR_TLV          0xBC
 #define BSS_CONFIGURATION_RESPONSE_TLV          0xBD /* FIX */
 #define AP_RADIO_ADVANCED_CAPABILITIES_TLV      0xBE
-#define ASSOCIATION_STATUS_NOTIFICATON_TLV      0xBF
+#define ASSOCIATION_STATUS_NOTIFICATION_TLV     0xBF
 #define SOURCE_INFO_TLV                         0xC0
 #define TUNNELED_MESSAGE_TYPE_TLV               0xC1
 #define TUNNELED_TLV                            0xC2
@@ -1168,7 +1168,7 @@ static const value_string ieee1905_tlv_types_vals[] = {
   { PUSH_BUTTON_EVENT_NOTIFICATION_TLV,      "Push_Button_Event notification" },
   { PUSH_BUTTON_JOIN_NOTIFICATION_TLV,       "Push_Button_Join notification" },
   { GENERIC_PHY_DEVICE_INFORMATION_TLV,      "Generic Phy device information" },
-  { DEVICE_IDENTIFICATION_TYPE_TLV,          "Device identificaton type" },
+  { DEVICE_IDENTIFICATION_TYPE_TLV,          "Device identification type" },
   { CONTROL_URL_TYPE_TLV,                    "Control URL type" },
   { IPV4_TYPE_TLV,                           "IPv4 type" },
   { IPV6_TYPE_TLV,                           "IPv6 type" },
@@ -1241,7 +1241,7 @@ static const value_string ieee1905_tlv_types_vals[] = {
   { PROFILE_2_ERROR_CODE_ERROR_TLV,          "Profile 2 Error Code" },
   { BSS_CONFIGURATION_RESPONSE_TLV,          "BSS Configuration Response" },
   { AP_RADIO_ADVANCED_CAPABILITIES_TLV,      "AP Radio Advanced Capabilities" },
-  { ASSOCIATION_STATUS_NOTIFICATON_TLV,      "Associated Status Notification" },
+  { ASSOCIATION_STATUS_NOTIFICATION_TLV,     "Associated Status Notification" },
   { SOURCE_INFO_TLV,                         "Source Info" },
   { TUNNELED_MESSAGE_TYPE_TLV,               "Tunneled Message Type" },
   { TUNNELED_TLV,                            "Tunneled" },
@@ -1526,7 +1526,7 @@ static const value_string channel_preference_reason_vals[] = {
 static const value_string ieee1905_channel_select_resp_code_vals[] = {
   { 0x00, "Accept" },
   { 0x01, "Declined because request violates current preferences" },
-  { 0x02, "Declined because request violates most recently reported preferencs" },
+  { 0x02, "Declined because request violates most recently reported preferences" },
   { 0x02, "Declined because request would prevent operation of a current backhaul link" },
   { 0, NULL }
 };
@@ -1541,7 +1541,7 @@ static const value_string ieee1905_steering_policy_vals[] = {
 static const value_string ieee1905_error_code_vals[] = {
   { 0x01, "STA associated with a BSS operated by the Agent" },
   { 0x02, "STA not associated with any BSS operated by the Agent" },
-  { 0x03, "Client capability report undecified failure" },
+  { 0x03, "Client capability report unspecified failure" },
   { 0x04, "Backhaul steering request rejected because station cannot operate on specified channel" },
   { 0x05, "Backhaul steering request rejected because target BSS signal too weak or not found" },
   { 0x06, "Backhaul steering request authentication or association Rejected by target BSS" },
@@ -7374,8 +7374,9 @@ dissect_akm_suite_capabilities(tvbuff_t *tvb, packet_info *pinfo _U_,
 /*
  * Dissect a 1905 Encap DPP TLV:
  */
-guint
-add_ff_action(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, int offset);
+int
+dissect_wifi_dpp_public_action(tvbuff_t *tvb, packet_info *pinfo,
+                               proto_tree *tree, void *data _U_);
 
 static const true_false_string tfs_dpp_frame_indicator = {
     "GAS frame",
@@ -8104,7 +8105,7 @@ dissect_ieee1905_tlv_data(tvbuff_t *tvb, packet_info *pinfo _U_,
                                                         offset, tlv_len);
         break;
 
-    case ASSOCIATION_STATUS_NOTIFICATON_TLV:
+    case ASSOCIATION_STATUS_NOTIFICATION_TLV:
         offset = dissect_association_status_notification(tvb, pinfo, tree,
                                                          offset, tlv_len);
         break;
@@ -8608,11 +8609,11 @@ proto_register_ieee1905(void)
             0, NULL, HFILL }},
 
         { &hf_ieee1905_responder_al_mac_addr,
-          { "Responder MAC address", "ieee1905.responder_mac_addr",
+          { "Responder MAC address", "ieee1905.responder_al_mac_addr",
             FT_ETHER, BASE_NONE, NULL, 0, NULL, HFILL }},
 
         { &hf_ieee1905_neighbor_al_mac_addr,
-          { "Neighbor MAC address", "ieee1905.responder_mac_addr",
+          { "Neighbor MAC address", "ieee1905.neighbor_al_mac_addr",
             FT_ETHER, BASE_NONE, NULL, 0, NULL, HFILL }},
 
         { &hf_ieee1905_receiving_al_mac_addr,
@@ -9680,7 +9681,7 @@ proto_register_ieee1905(void)
             FT_BYTES, BASE_NONE, NULL, 0, NULL, HFILL }},
 
         { &hf_ieee1905_steering_policy_policy,
-          { "Steering policy", "ieee1905.steering_polocy.policy",
+          { "Steering policy", "ieee1905.steering_policy.policy",
             FT_UINT8, BASE_HEX, NULL, 0, NULL, HFILL }},
 
         { &hf_ieee1905_steering_policy_util,

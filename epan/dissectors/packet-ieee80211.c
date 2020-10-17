@@ -3916,6 +3916,15 @@ static int hf_ieee80211_mesh_awake_window = -1;
 static int hf_ieee80211_mesh_mic = -1;
 static int hf_ieee80211_mesh_ampe_encrypted_data = -1;
 
+static int hf_ieee80211_bcn_timing_rctrl = -1;
+static int hf_ieee80211_bcn_timing_rctrl_more = -1;
+static int hf_ieee80211_bcn_timing_rctrl_element_num = -1;
+static int hf_ieee80211_bcn_timing_rctrl_status_num = -1;
+static int hf_ieee80211_bcn_timing_info = -1;
+static int hf_ieee80211_bcn_timing_info_nsta_id = -1;
+static int hf_ieee80211_bcn_timing_info_nsta_tbtt = -1;
+static int hf_ieee80211_bcn_timing_info_nsta_bi = -1;
+
 static int hf_ieee80211_ff_public_action = -1;
 static int hf_ieee80211_ff_protected_public_action = -1;
 static int hf_ieee80211_ff_tod = -1;
@@ -6000,6 +6009,8 @@ static gint ett_hwmp_targ_flags_tree = -1;
 static gint ett_mesh_chswitch_flag_tree = -1;
 static gint ett_mesh_config_cap_tree = -1;
 static gint ett_mesh_formation_info_tree = -1;
+static gint ett_bcn_timing_rctrl_tree = -1;
+static gint ett_bcn_timing_info_tree = -1;
 
 static gint ett_rsn_gcs_tree = -1;
 static gint ett_rsn_pcs_tree = -1;
@@ -8421,7 +8432,7 @@ dissect_hs20_osu_provider(proto_tree *tree, tvbuff_t *tvb,
     proto_item_set_len(pi, offset - start_offset);
   }
 
-  return end;
+  return offset;
 }
 
 static void
@@ -13347,7 +13358,7 @@ add_ff_action_dmg(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, int offse
   return offset - start;
 }
 
-static guint
+guint
 add_ff_action(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, int offset,
               association_sanity_check_t *association_sanity_check)
 {
@@ -22729,6 +22740,58 @@ ieee80211_tag_mesh_id(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void*
 }
 
 static int
+ieee80211_tag_beacon_timing(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
+{
+  int tag_len = tvb_reported_length(tvb);
+  ieee80211_tagged_field_data_t* field_data = (ieee80211_tagged_field_data_t*)data;
+  int offset = 0;
+  guint32 value;
+  proto_item *item;
+  proto_tree *subtree;
+
+  static int * const ieee80211_beacon_timing_rctrl_byte[] = {
+    &hf_ieee80211_bcn_timing_rctrl_more,
+    &hf_ieee80211_bcn_timing_rctrl_element_num,
+    &hf_ieee80211_bcn_timing_rctrl_status_num,
+    NULL,
+  };
+
+  /* Beacon timing element (120) */
+  if (tag_len < 1) {
+    expert_add_info_format(pinfo, field_data->item_tag_length, &ei_ieee80211_tag_length,
+                           "Tag length %u too short, must be greater than 1", tag_len);
+    return tvb_captured_length(tvb);
+  }
+
+  proto_tree_add_bitmask_with_flags(tree, tvb, offset, hf_ieee80211_bcn_timing_rctrl,
+                      ett_bcn_timing_rctrl_tree, ieee80211_beacon_timing_rctrl_byte,
+                      ENC_LITTLE_ENDIAN, BMT_NO_APPEND);
+  offset += 1;
+
+  while (offset < tag_len) {
+    item = proto_tree_add_item(tree, hf_ieee80211_bcn_timing_info, tvb, offset, 6, ENC_NA);
+    subtree = proto_item_add_subtree(item, ett_bcn_timing_info_tree);
+    proto_item_append_text(item, " %u", ((offset / 6) + 1));
+
+    proto_tree_add_item_ret_uint(subtree, hf_ieee80211_bcn_timing_info_nsta_id, tvb, offset, 1, ENC_LITTLE_ENDIAN, &value);
+    proto_item_append_text(item, ": STA ID: %u", value);
+    offset += 1;
+
+    proto_tree_add_item_ret_uint(subtree, hf_ieee80211_bcn_timing_info_nsta_tbtt, tvb, offset, 3, ENC_LITTLE_ENDIAN, &value);
+    proto_item_append_text(item, ", STA TBTT: %u", value);
+    offset += 3;
+
+    proto_tree_add_item_ret_uint(subtree, hf_ieee80211_bcn_timing_info_nsta_bi, tvb, offset, 2, ENC_LITTLE_ENDIAN, &value);
+    proto_item_append_text(item, ", STA BI: %u", value);
+    offset += 2;
+  }
+
+  proto_item_append_text(field_data->item_tag, " (%d entr%s)", offset / 6, plurality(offset / 6, "y", "ies"));
+
+  return tvb_captured_length(tvb);
+}
+
+static int
 ieee80211_tag_mesh_preq(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
   int offset = 0;
@@ -28281,7 +28344,7 @@ proto_register_ieee80211(void)
       NULL, HFILL }},
 
     {&hf_ieee80211_ff_rm_action_code,
-     {"Action code", "wlan.rm.action_code",
+     {"Action code", "wlan.fixed.action_code",
       FT_UINT8, BASE_DEC|BASE_EXT_STRING, &rm_action_codes_ext, 0,
       "Radio Measurement Action", HFILL }},
 
@@ -29352,7 +29415,7 @@ proto_register_ieee80211(void)
       NULL, HFILL }},
 
     {&hf_ieee80211_tag_bs_fbck_antenna_id,
-     {"BS-FBCK Anetenna ID", "wlan.beam_refine.bs_fbck_antenna_id",
+     {"BS-FBCK Antenna ID", "wlan.beam_refine.bs_fbck_antenna_id",
       FT_UINT40, BASE_DEC, NULL, 0x0000001800,
       NULL, HFILL }},
 
@@ -31108,6 +31171,46 @@ proto_register_ieee80211(void)
       FT_STRING, BASE_NONE, NULL, 0,
       NULL, HFILL }},
 
+    {&hf_ieee80211_bcn_timing_rctrl,
+     {"Report Control", "wlan.bcntime.rctrl",
+      FT_UINT8, BASE_HEX, NULL, 0,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_bcn_timing_rctrl_more,
+     {"More Beacon Timing Elements", "wlan.bcntime.rctrl.more",
+      FT_BOOLEAN, 8, TFS(&tfs_more_nomore), 0x01,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_bcn_timing_rctrl_element_num,
+     {"Beacon Timing Element Number", "wlan.bcntime.rctrl.elem_num",
+      FT_UINT8, BASE_HEX, NULL, 0x0E,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_bcn_timing_rctrl_status_num,
+     {"Status Number", "wlan.bcntime.rctrl.status_num",
+      FT_UINT8, BASE_HEX, NULL, 0xF0,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_bcn_timing_info,
+     {"Beacon Timing Info", "wlan.bcntime.info",
+      FT_NONE, BASE_NONE, NULL, 0,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_bcn_timing_info_nsta_id,
+     {"Neighbor STA ID", "wlan.bcntime.info.nstaid",
+      FT_UINT8, BASE_HEX, NULL, 0,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_bcn_timing_info_nsta_tbtt,
+     {"Neighbor STA TBTT", "wlan.bcntime.info.nstatbtt",
+      FT_UINT24, BASE_DEC, NULL, 0,
+      NULL, HFILL }},
+
+    {&hf_ieee80211_bcn_timing_info_nsta_bi,
+     {"Neighbor STA Beacon Interval", "wlan.bcntime.info.nstabi",
+       FT_UINT16, BASE_CUSTOM, CF_FUNC(beacon_interval_base_custom), 0,
+      NULL, HFILL }},
+
     {&hf_ieee80211_mesh_mic,
      {"Mesh Peering Management MIC", "wlan.mesh.mic",
       FT_BYTES, BASE_NONE, NULL, 0, NULL, HFILL }},
@@ -31836,7 +31939,7 @@ proto_register_ieee80211(void)
       FT_BYTES, BASE_NONE, NULL, 0, NULL, HFILL }},
 
     {&hf_ieee80211_hs20_osu_service_desc_len,
-     {"OSU Service Desctription Length", "wlan.hs20.osu_service_desc_len",
+     {"OSU Service Description Length", "wlan.hs20.osu_service_desc_len",
       FT_UINT16, BASE_DEC, NULL, 0, NULL, HFILL }},
 
     {&hf_ieee80211_hs20_osu_service_desc_duple_len,
@@ -32038,7 +32141,7 @@ proto_register_ieee80211(void)
       NULL, HFILL }},
 
     {&hf_ieee80211_tag_symbol_proprietary_oui,
-     {"Symbol Propritary OUI", "wlan.tag.symbol_proprietary.oui",
+     {"Symbol Proprietary OUI", "wlan.tag.symbol_proprietary.oui",
       FT_UINT24, BASE_OUI, NULL, 0,
       NULL, HFILL }},
 
@@ -39077,6 +39180,8 @@ proto_register_ieee80211(void)
     &ett_mesh_chswitch_flag_tree,
     &ett_mesh_config_cap_tree,
     &ett_mesh_formation_info_tree,
+    &ett_bcn_timing_rctrl_tree,
+    &ett_bcn_timing_info_tree,
 
     &ett_rsn_gcs_tree,
     &ett_rsn_pcs_tree,
@@ -39978,6 +40083,7 @@ proto_reg_handoff_ieee80211(void)
   dissector_add_uint("wlan.tag.number", TAG_MESH_PEERING_MGMT, create_dissector_handle(ieee80211_tag_mesh_peering_mgmt, -1));
   dissector_add_uint("wlan.tag.number", TAG_MESH_CONFIGURATION, create_dissector_handle(ieee80211_tag_mesh_configuration, -1));
   dissector_add_uint("wlan.tag.number", TAG_MESH_ID, create_dissector_handle(ieee80211_tag_mesh_id, -1));
+  dissector_add_uint("wlan.tag.number", TAG_BEACON_TIMING, create_dissector_handle(ieee80211_tag_beacon_timing, -1));
   dissector_add_uint("wlan.tag.number", TAG_MESH_PREQ, create_dissector_handle(ieee80211_tag_mesh_preq, -1));
   dissector_add_uint("wlan.tag.number", TAG_MESH_PREP, create_dissector_handle(ieee80211_tag_mesh_prep, -1));
   dissector_add_uint("wlan.tag.number", TAG_MESH_PERR, create_dissector_handle(ieee80211_tag_mesh_perr, -1));

@@ -563,7 +563,7 @@ static const struct {
 	 * We treat 13 as WTAP_ENCAP_ENC on all systems except those
 	 * that define DLT_ATM_RFC1483 as 13 - presumably only
 	 * BSD/OS does so - so that, on BSD/OS systems, we still
-	 * treate 13 as WTAP_ENCAP_ATM_RFC1483, but, on all other
+	 * treat 13 as WTAP_ENCAP_ATM_RFC1483, but, on all other
 	 * systems, we can read OpenBSD DLT_ENC captures.
 	 */
 #if defined(__bsdi__) /* BSD/OS */
@@ -1513,7 +1513,7 @@ pcap_read_erf_pseudoheader(FILE_T fh, wtap_rec *rec,
 		}
 		if (packet_size < (guint)(phdr_len + (int)sizeof(erf_aal2_header_t))) {
 			*err = WTAP_ERR_BAD_FILE;
-			*err_info = g_strdup_printf("pcap/pcapng: ERF file has a %u-byte packet, too small to include the AAL2 headerr",
+			*err_info = g_strdup_printf("pcap/pcapng: ERF file has a %u-byte packet, too small to include the AAL2 header",
 			    packet_size);
 			return -1;
 		}

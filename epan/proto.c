@@ -281,7 +281,7 @@ proto_tree_set_ether_tvb(field_info *fi, tvbuff_t *tvb, gint start);
 static void
 proto_tree_set_ipxnet(field_info *fi, guint32 value);
 static void
-proto_tree_set_ipv4(field_info *fi, guint32 value);
+proto_tree_set_ipv4(field_info *fi, ws_in4_addr value);
 static void
 proto_tree_set_ipv6(field_info *fi, const guint8* value_ptr);
 static void
@@ -1791,8 +1791,28 @@ get_stringzpad_value(wmem_allocator_t *scope, tvbuff_t *tvb, gint start,
 	 * terminated, so a "zero-padded" string
 	 * isn't special.  If we represent string
 	 * values as something that includes a counted
-	 * array of bytes, we'll need to strip
+	 * array of bytes, we'll need to strip the
 	 * trailing NULs.
+	 */
+	if (length == -1) {
+		length = tvb_ensure_captured_length_remaining(tvb, start);
+	}
+	*ret_length = length;
+	return tvb_get_string_enc(scope, tvb, start, length, encoding);
+}
+
+/* For FT_STRINGZTRUNC */
+static inline const guint8 *
+get_stringztrunc_value(wmem_allocator_t *scope, tvbuff_t *tvb, gint start,
+    gint length, gint *ret_length, const guint encoding)
+{
+	/*
+	 * XXX - currently, string values are null-
+	 * terminated, so a "zero-truncated" string
+	 * isn't special.  If we represent string
+	 * values as something that includes a counted
+	 * array of bytes, we'll need to strip everything
+	 * starting with the terminating NUL.
 	 */
 	if (length == -1) {
 		length = tvb_ensure_captured_length_remaining(tvb, start);
@@ -2492,6 +2512,7 @@ proto_tree_new_item(field_info *new_fi, proto_tree *tree,
 	proto_item *pi;
 	guint32	    value, n;
 	guint64	    value64;
+	ws_in4_addr ipv4_value;
 	float	    floatval;
 	double	    doubleval;
 	const char *stringval = NULL;
@@ -2629,7 +2650,7 @@ proto_tree_new_item(field_info *new_fi, proto_tree *tree,
 				length_error = length < FT_IPv4_LEN ? TRUE : FALSE;
 				report_type_length_mismatch(tree, "an IPv4 address", length, length_error);
 			}
-			value = tvb_get_ipv4(tvb, start);
+			ipv4_value = tvb_get_ipv4(tvb, start);
 			/*
 			 * NOTE: to support code written when
 			 * proto_tree_add_item() took a gboolean as its
@@ -2638,7 +2659,7 @@ proto_tree_new_item(field_info *new_fi, proto_tree *tree,
 			 * non-zero value of "encoding" as meaning
 			 * "little-endian".
 			 */
-			proto_tree_set_ipv4(new_fi, encoding ? GUINT32_SWAP_LE_BE(value) : value);
+			proto_tree_set_ipv4(new_fi, encoding ? GUINT32_SWAP_LE_BE(ipv4_value) : ipv4_value);
 			break;
 
 		case FT_IPXNET:
@@ -2847,6 +2868,23 @@ proto_tree_new_item(field_info *new_fi, proto_tree *tree,
 
 		case FT_STRINGZPAD:
 			stringval = get_stringzpad_value(wmem_packet_scope(),
+			    tvb, start, length, &length, encoding);
+			proto_tree_set_string(new_fi, stringval);
+
+			/* Instead of calling proto_item_set_len(), since we
+			 * don't yet have a proto_item, we set the
+			 * field_info's length ourselves.
+			 *
+			 * XXX - our caller can't use that length to
+			 * advance an offset unless they arrange that
+			 * there always be a protocol tree into which
+			 * we're putting this item.
+			 */
+			new_fi->length = length;
+			break;
+
+		case FT_STRINGZTRUNC:
+			stringval = get_stringztrunc_value(wmem_packet_scope(),
 			    tvb, start, length, &length, encoding);
 			proto_tree_set_string(new_fi, stringval);
 
@@ -3229,8 +3267,11 @@ ptvcursor_add_ret_string(ptvcursor_t* ptvc, int hf, gint length, const guint enc
 	case FT_STRINGZPAD:
 		value = get_stringzpad_value(scope, ptvc->tvb, offset, length, &item_length, encoding);
 		break;
+	case FT_STRINGZTRUNC:
+		value = get_stringztrunc_value(scope, ptvc->tvb, offset, length, &item_length, encoding);
+		break;
 	default:
-		REPORT_DISSECTOR_BUG("field %s is not of type FT_STRING, FT_STRINGZ, FT_UINT_STRING, or FT_STRINGZPAD",
+		REPORT_DISSECTOR_BUG("field %s is not of type FT_STRING, FT_STRINGZ, FT_UINT_STRING, FT_STRINGZPAD, or FT_STRINGZTRUNC",
 		    hfinfo->abbrev);
 	}
 
@@ -3271,7 +3312,7 @@ ptvcursor_add_ret_boolean(ptvcursor_t* ptvc, int hfindex, gint length, const gui
 	/* length validation for native number encoding caught by get_uint64_value() */
 	/* length has to be -1 or > 0 regardless of encoding */
 	if (length < -1 || length == 0)
-		REPORT_DISSECTOR_BUG("Invalid length %d passed to proto_tree_add_item_ret_uint",
+		REPORT_DISSECTOR_BUG("Invalid length %d passed to ptvcursor_add_ret_boolean",
 			length);
 
 	if (encoding & ENC_STRING) {
@@ -3504,7 +3545,7 @@ proto_tree_add_item_ret_boolean(proto_tree *tree, int hfindex, tvbuff_t *tvb,
 	/* length validation for native number encoding caught by get_uint64_value() */
 	/* length has to be -1 or > 0 regardless of encoding */
 	if (length < -1 || length == 0)
-		REPORT_DISSECTOR_BUG("Invalid length %d passed to proto_tree_add_item_ret_uint",
+		REPORT_DISSECTOR_BUG("Invalid length %d passed to proto_tree_add_item_ret_boolean",
 			length);
 
 	if (encoding & ENC_STRING) {
@@ -3532,6 +3573,59 @@ proto_tree_add_item_ret_boolean(proto_tree *tree, int hfindex, tvbuff_t *tvb,
 
 	new_fi->flags |= (encoding & ENC_LITTLE_ENDIAN) ? FI_LITTLE_ENDIAN : FI_BIG_ENDIAN;
 
+	return proto_tree_add_node(tree, new_fi);
+}
+
+proto_item *
+proto_tree_add_item_ret_ipv4(proto_tree *tree, int hfindex, tvbuff_t *tvb,
+                             const gint start, gint length,
+                             const guint encoding, ws_in4_addr *retval)
+{
+	header_field_info *hfinfo = proto_registrar_get_nth(hfindex);
+	field_info	  *new_fi;
+	ws_in4_addr	   value;
+
+	DISSECTOR_ASSERT_HINT(hfinfo != NULL, "Not passed hfi!");
+
+	switch (hfinfo->type) {
+	case FT_IPv4:
+		break;
+	default:
+		REPORT_DISSECTOR_BUG("field %s is not of type FT_IPv4",
+		    hfinfo->abbrev);
+	}
+
+	if (length != FT_IPv4_LEN)
+		REPORT_DISSECTOR_BUG("Invalid length %d passed to proto_tree_add_item_ret_ipv4",
+			length);
+
+	if (encoding & (ENC_STRING | ENC_VARIANT_MASK | ENC_VARINT_PROTOBUF | ENC_VARINT_ZIGZAG)) {
+		REPORT_DISSECTOR_BUG("wrong encoding");
+	}
+
+	/*
+	 * NOTE: to support code written when proto_tree_add_item() took
+	 * a gboolean as its last argument, with FALSE meaning "big-endian"
+	 * and TRUE meaning "little-endian", we treat any non-zero value
+	 * of "encoding" as meaning "little-endian".
+	 */
+	value = tvb_get_ipv4(tvb, start);
+	if (encoding)
+		value = GUINT32_SWAP_LE_BE(value);
+
+	if (retval) {
+		*retval = value;
+	}
+
+	CHECK_FOR_NULL_TREE(tree);
+
+	TRY_TO_FAKE_THIS_ITEM(tree, hfinfo->id, hfinfo);
+
+	new_fi = new_field_info(tree, hfinfo, tvb, start, length);
+
+	proto_tree_set_ipv4(new_fi, value);
+
+	new_fi->flags |= encoding ? FI_LITTLE_ENDIAN : FI_BIG_ENDIAN;
 	return proto_tree_add_node(tree, new_fi);
 }
 
@@ -3564,8 +3658,11 @@ proto_tree_add_item_ret_string_and_length(proto_tree *tree, int hfindex,
 	case FT_STRINGZPAD:
 		value = get_stringzpad_value(scope, tvb, start, length, lenretval, encoding);
 		break;
+	case FT_STRINGZTRUNC:
+		value = get_stringztrunc_value(scope, tvb, start, length, lenretval, encoding);
+		break;
 	default:
-		REPORT_DISSECTOR_BUG("field %s is not of type FT_STRING, FT_STRINGZ, FT_UINT_STRING, or FT_STRINGZPAD",
+		REPORT_DISSECTOR_BUG("field %s is not of type FT_STRING, FT_STRINGZ, FT_UINT_STRING, FT_STRINGZPAD, or FT_STRINGZTRUNC",
 		    hfinfo->abbrev);
 	}
 
@@ -3588,6 +3685,7 @@ proto_tree_add_item_ret_string_and_length(proto_tree *tree, int hfindex,
 
 	case FT_STRINGZ:
 	case FT_STRINGZPAD:
+	case FT_STRINGZTRUNC:
 	case FT_UINT_STRING:
 		break;
 
@@ -3646,6 +3744,10 @@ proto_tree_add_item_ret_display_string_and_length(proto_tree *tree, int hfindex,
 		value = get_stringzpad_value(scope, tvb, start, length, lenretval, encoding);
 		*retval = hfinfo_format_text(scope, hfinfo, value);
 		break;
+	case FT_STRINGZTRUNC:
+		value = get_stringztrunc_value(scope, tvb, start, length, lenretval, encoding);
+		*retval = hfinfo_format_text(scope, hfinfo, value);
+		break;
 	case FT_BYTES:
 		value = tvb_get_ptr(tvb, start, length);
 		*retval = hfinfo_format_bytes(scope, hfinfo, value, length);
@@ -3658,7 +3760,7 @@ proto_tree_add_item_ret_display_string_and_length(proto_tree *tree, int hfindex,
 		*lenretval = length + n;
 		break;
 	default:
-		REPORT_DISSECTOR_BUG("field %s is not of type FT_STRING, FT_STRINGZ, FT_UINT_STRING, FT_STRINGZPAD, FT_BYTES, or FT_UINT_BYTES",
+		REPORT_DISSECTOR_BUG("field %s is not of type FT_STRING, FT_STRINGZ, FT_UINT_STRING, FT_STRINGZPAD, FT_STRINGZTRUNC, FT_BYTES, or FT_UINT_BYTES",
 		    hfinfo->abbrev);
 	}
 
@@ -3674,6 +3776,7 @@ proto_tree_add_item_ret_display_string_and_length(proto_tree *tree, int hfindex,
 	case FT_STRINGZ:
 	case FT_UINT_STRING:
 	case FT_STRINGZPAD:
+	case FT_STRINGZTRUNC:
 		proto_tree_set_string(new_fi, value);
 		break;
 
@@ -3696,6 +3799,7 @@ proto_tree_add_item_ret_display_string_and_length(proto_tree *tree, int hfindex,
 
 	case FT_STRINGZ:
 	case FT_STRINGZPAD:
+	case FT_STRINGZTRUNC:
 	case FT_UINT_STRING:
 		break;
 
@@ -4454,7 +4558,7 @@ proto_tree_set_ipxnet(field_info *fi, guint32 value)
 /* Add a FT_IPv4 to a proto_tree */
 proto_item *
 proto_tree_add_ipv4(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
-		    gint length, guint32 value)
+		    gint length, ws_in4_addr value)
 {
 	proto_item	  *pi;
 	header_field_info *hfinfo;
@@ -4473,7 +4577,7 @@ proto_tree_add_ipv4(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
 
 proto_item *
 proto_tree_add_ipv4_format_value(proto_tree *tree, int hfindex, tvbuff_t *tvb,
-				 gint start, gint length, guint32 value,
+				 gint start, gint length, ws_in4_addr value,
 				 const char *format, ...)
 {
 	proto_item	  *pi;
@@ -4491,7 +4595,7 @@ proto_tree_add_ipv4_format_value(proto_tree *tree, int hfindex, tvbuff_t *tvb,
 
 proto_item *
 proto_tree_add_ipv4_format(proto_tree *tree, int hfindex, tvbuff_t *tvb,
-			   gint start, gint length, guint32 value,
+			   gint start, gint length, ws_in4_addr value,
 			   const char *format, ...)
 {
 	proto_item	  *pi;
@@ -4511,7 +4615,7 @@ proto_tree_add_ipv4_format(proto_tree *tree, int hfindex, tvbuff_t *tvb,
 
 /* Set the FT_IPv4 value */
 static void
-proto_tree_set_ipv4(field_info *fi, guint32 value)
+proto_tree_set_ipv4(field_info *fi, ws_in4_addr value)
 {
 	fvalue_set_uinteger(&fi->value, value);
 }
@@ -4782,8 +4886,9 @@ proto_tree_set_system_id_tvb(field_info *fi, tvbuff_t *tvb, gint start, gint len
 	proto_tree_set_system_id(fi, tvb_get_ptr(tvb, start, length), length);
 }
 
-/* Add a FT_STRING, FT_STRINGZ, or FT_STRINGZPAD to a proto_tree. Creates
- * own copy of string, and frees it when the proto_tree is destroyed. */
+/* Add a FT_STRING, FT_STRINGZ, FT_STRINGZPAD, or FT_STRINGZTRUNC to a
+ * proto_tree. Creates own copy of string, and frees it when the proto_tree
+ * is destroyed. */
 proto_item *
 proto_tree_add_string(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
 		      gint length, const char* value)
@@ -5814,9 +5919,10 @@ get_hfi_length(header_field_info *hfinfo, tvbuff_t *tvb, const gint start, gint 
 	 */
 	if (*length == -1) {
 		/*
-		 * For FT_NONE, FT_PROTOCOL, FT_BYTES, FT_STRING, and
-		 * FT_STRINGZPAD fields, a length of -1 means "set the
-		 * length to what remains in the tvbuff".
+		 * For FT_NONE, FT_PROTOCOL, FT_BYTES, FT_STRING,
+		 * FT_STRINGZPAD, and FT_STRINGZTRUNC fields, a length
+		 * of -1 means "set the length to what remains in the
+		 * tvbuff".
 		 *
 		 * The assumption is either that
 		 *
@@ -5891,6 +5997,7 @@ get_hfi_length(header_field_info *hfinfo, tvbuff_t *tvb, const gint start, gint 
 		case FT_BYTES:
 		case FT_STRING:
 		case FT_STRINGZPAD:
+		case FT_STRINGZTRUNC:
 			/*
 			 * We allow FT_PROTOCOLs to be zero-length -
 			 * for example, an ONC RPC NULL procedure has
@@ -6056,6 +6163,7 @@ get_full_length(header_field_info *hfinfo, tvbuff_t *tvb, const gint start,
 		break;
 
 	case FT_STRINGZPAD:
+	case FT_STRINGZTRUNC:
 	case FT_ABSOLUTE_TIME:
 	case FT_RELATIVE_TIME:
 	case FT_IEEE_11073_SFLOAT:
@@ -6235,7 +6343,7 @@ proto_custom_set(proto_tree* tree, GSList *field_ids, gint occurrence,
 	guint32             number;
 	guint64             number64;
 	guint8             *bytes;
-	guint32             ipv4;
+	ws_in4_addr         ipv4;
 	ws_in6_addr        *ipv6;
 	address             addr;
 
@@ -6608,6 +6716,7 @@ proto_custom_set(proto_tree* tree, GSList *field_ids, gint occurrence,
 					case FT_STRINGZ:
 					case FT_UINT_STRING:
 					case FT_STRINGZPAD:
+					case FT_STRINGZTRUNC:
 						bytes = (guint8 *)fvalue_get(&finfo->value);
 						str = hfinfo_format_text(NULL, hfinfo, bytes);
 						offset_r += protoo_strlcpy(result+offset_r,
@@ -8349,6 +8458,7 @@ tmp_fld_check_assert(header_field_info *hfinfo)
 		case FT_STRINGZ:
 		case FT_UINT_STRING:
 		case FT_STRINGZPAD:
+		case FT_STRINGZTRUNC:
 			switch (hfinfo->display) {
 				case STR_ASCII:
 				case STR_UNICODE:
@@ -8551,7 +8661,7 @@ register_string_errors(void)
 	proto_set_cant_toggle(proto_string_errors);
 }
 
-#define PROTO_PRE_ALLOC_HF_FIELDS_MEM (225000+PRE_ALLOC_EXPERT_FIELDS_MEM)
+#define PROTO_PRE_ALLOC_HF_FIELDS_MEM (230000+PRE_ALLOC_EXPERT_FIELDS_MEM)
 static int
 proto_register_field_init(header_field_info *hfinfo, const int parent)
 {
@@ -8786,7 +8896,7 @@ proto_item_fill_label(field_info *fi, gchar *label_str)
 	guint8		   *bytes;
 	guint32		    integer;
 	guint64		    integer64;
-	guint32             ipv4;
+	ws_in4_addr         ipv4;
 	e_guid_t	   *guid;
 	gchar		   *name;
 	address		    addr;
@@ -9081,6 +9191,7 @@ proto_item_fill_label(field_info *fi, gchar *label_str)
 		case FT_STRINGZ:
 		case FT_UINT_STRING:
 		case FT_STRINGZPAD:
+		case FT_STRINGZTRUNC:
 			bytes = (guint8 *)fvalue_get(&fi->value);
 			tmp = hfinfo_format_text(NULL, hfinfo, bytes);
 			label_fill(label_str, 0, hfinfo, tmp);
@@ -9542,7 +9653,7 @@ fill_label_number(field_info *fi, gchar *label_str, gboolean is_signed)
 		if (hfinfo->display & BASE_SPECIAL_VALS) {
 			/*
 			 * Unique values only display value_string string
-			 * if there is a match.  Otherwise it's just a number
+			 * if there is a match. Otherwise it's just a number
 			 */
 			if (val_str) {
 				label_fill_descr(label_str, 0, hfinfo, val_str, out);
@@ -9597,13 +9708,28 @@ fill_label_number64(field_info *fi, gchar *label_str, gboolean is_signed)
 		label_fill(label_str, 0, hfinfo, tmp);
 	}
 	else if (hfinfo->strings) {
-		const char *val_str = hf_try_val64_to_str_const(value, hfinfo, "Unknown");
+		const char *val_str = hf_try_val64_to_str(value, hfinfo);
 
 		out = hfinfo_number_vals_format64(hfinfo, buf, value);
-		if (out == NULL) /* BASE_NONE so don't put integer in descr */
-			label_fill(label_str, 0, hfinfo, val_str);
-		else
-			label_fill_descr(label_str, 0, hfinfo, val_str, out);
+		if (hfinfo->display & BASE_SPECIAL_VALS) {
+			/*
+			 * Unique values only display value_string string
+			 * if there is a match. Otherwise it's just a number
+			 */
+			if (val_str) {
+				label_fill_descr(label_str, 0, hfinfo, val_str, out);
+			} else {
+				label_fill(label_str, 0, hfinfo, out);
+			}
+		} else {
+			if (val_str == NULL)
+				val_str = "Unknown";
+
+			if (out == NULL) /* BASE_NONE so don't put integer in descr */
+				label_fill(label_str, 0, hfinfo, val_str);
+			else
+				label_fill_descr(label_str, 0, hfinfo, val_str, out);
+		}
 	}
 	else {
 		out = hfinfo_number_value_format64(hfinfo, buf, value);
@@ -11928,6 +12054,8 @@ _proto_tree_add_bits_ret_val(proto_tree *tree, const int hfindex, tvbuff_t *tvb,
 	char    *bf_str;
 	char     lbl_str[ITEM_LABEL_LENGTH];
 	guint64  value = 0;
+	guint8  *bytes = NULL;
+	size_t bytes_length = 0;
 
 	proto_item        *pi;
 	header_field_info *hf_field;
@@ -11959,7 +12087,7 @@ _proto_tree_add_bits_ret_val(proto_tree *tree, const int hfindex, tvbuff_t *tvb,
 
 	if (no_of_bits < 65) {
 		value = tvb_get_bits64(tvb, bit_offset, no_of_bits, encoding);
-	} else {
+	} else if (hf_field->type != FT_BYTES) {
 		REPORT_DISSECTOR_BUG("field %s passed to proto_tree_add_bits_ret_val() has a bit width of %u > 65",
 				     hf_field->abbrev, no_of_bits);
 		return NULL;
@@ -12038,6 +12166,14 @@ _proto_tree_add_bits_ret_val(proto_tree *tree, const int hfindex, tvbuff_t *tvb,
 	case FT_INT64:
 		pi = proto_tree_add_int64(tree, hfindex, tvb, offset, length, (gint64)value);
 		fill_label_number64(PITEM_FINFO(pi), lbl_str, TRUE);
+		break;
+
+	case FT_BYTES:
+		bytes = tvb_get_bits_array(NULL, tvb, bit_offset, no_of_bits, &bytes_length);
+		pi = proto_tree_add_bytes_with_length(tree, hfindex, tvb, offset, length, bytes, (gint) bytes_length);
+		proto_item_fill_label(PITEM_FINFO(pi), lbl_str);
+		proto_item_set_text(pi, "%s", lbl_str);
+		return pi;
 		break;
 
 	default:
@@ -12604,7 +12740,7 @@ proto_tree_add_boolean_bits_format_value64(proto_tree *tree, const int hfindex,
 }
 
 proto_item *
-proto_tree_add_ts_23_038_7bits_item(proto_tree *tree, const int hfindex, tvbuff_t *tvb,
+proto_tree_add_ts_23_038_7bits_packed_item(proto_tree *tree, const int hfindex, tvbuff_t *tvb,
 	const guint bit_offset, const gint no_of_chars)
 {
 	proto_item	  *pi;
@@ -12622,7 +12758,7 @@ proto_tree_add_ts_23_038_7bits_item(proto_tree *tree, const int hfindex, tvbuff_
 	byte_length = (((no_of_chars + 1) * 7) + (bit_offset & 0x07)) >> 3;
 	byte_offset = bit_offset >> 3;
 
-	string = tvb_get_ts_23_038_7bits_string(wmem_packet_scope(), tvb, bit_offset, no_of_chars);
+	string = tvb_get_ts_23_038_7bits_string_packed(wmem_packet_scope(), tvb, bit_offset, no_of_chars);
 
 	if (hfinfo->display == STR_UNICODE) {
 		DISSECTOR_ASSERT(g_utf8_validate(string, -1, NULL));

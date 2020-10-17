@@ -598,7 +598,7 @@ proto_register_ebhscr(void)
 			NULL, HFILL }
 		},
 		{ &hf_can_ERRP,
-			{ "CAN Counters reached Error pasive limit", "ebhscr.can.errp",
+			{ "CAN Counters reached Error passive limit", "ebhscr.can.errp",
 			FT_UINT64, BASE_DEC | BASE_VAL64_STRING,
 			VALS64(can_ERRP_strings), 0x0000002000000000,
 			NULL, HFILL }
@@ -823,12 +823,12 @@ proto_register_ebhscr(void)
 			"Frame Header is malformed", EXPFILL }
 		},
 		{ &ei_ebhscr_err_status_flag,
-			{ "ebhscr.sts", PI_PROTOCOL, PI_WARN,
+			{ "ebhscr.sts.err.status", PI_PROTOCOL, PI_WARN,
 			"Status Flag is set", EXPFILL }
 		},
 		{ &ei_ebhscr_info_status_flag,
-		{ "ebhscr.sts", PI_PROTOCOL, PI_CHAT,
-		"Status Flag is set", EXPFILL }
+			{ "ebhscr.sts.info.status", PI_PROTOCOL, PI_CHAT,
+			"Status Flag is set", EXPFILL }
 		},
 	};
 

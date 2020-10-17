@@ -62,6 +62,7 @@
  * RFC 7710: Captive-Portal Identification Using DHCP or Router Advertisements (RAs)
  * RFC 7839: Access-Network-Identifier Option in DHCP
  * RFC 8357: Generalized UDP Source Port for DHCP Relay
+ * RFC 8910: Captive-Portal Identification in DHCP and Router Advertisements (RAs)
  * draft-ietf-dhc-fqdn-option-07.txt
  * TFTP Server Address Option for DHCPv4 [draft-raj-dhc-tftp-addr-option-06.txt: https://tools.ietf.org/html/draft-raj-dhc-tftp-addr-option-06]
  * BOOTP and DHCP Parameters
@@ -528,6 +529,7 @@ static int hf_dhcp_option_tz_pcode = -1;				/* 100 */
 static int hf_dhcp_option_tz_tcode = -1;				/* 101 */
 static int hf_dhcp_option_netinfo_parent_server_address = -1;		/* 112 */
 static int hf_dhcp_option_netinfo_parent_server_tag = -1;		/* 113 */
+static int hf_dhcp_option_captive_portal = -1;				/* 114 (ex 160) */
 static int hf_dhcp_option_dhcp_auto_configuration = -1;			/* 116 */
 static int hf_dhcp_option_dhcp_name_service_search_option = -1;		/* 117 */
 static int hf_dhcp_option_dhcp_dns_domain_search_list_rfc_3396_detected = -1;	/* 119 */
@@ -545,7 +547,7 @@ static int hf_dhcp_option_rfc3825_longitude = -1;			/* 123 */
 static int hf_dhcp_option_rfc3825_latitude_res = -1;			/* 123 */
 static int hf_dhcp_option_rfc3825_longitude_res = -1;			/* 123 */
 static int hf_dhcp_option_rfc3825_altitude = -1;			/* 123 */
-static int hf_dhcp_option_rfc3825_altitide_res = -1;			/* 123 */
+static int hf_dhcp_option_rfc3825_altitude_res = -1;			/* 123 */
 static int hf_dhcp_option_rfc3825_altitude_type = -1;			/* 123 */
 static int hf_dhcp_option_rfc3825_map_datum = -1;			/* 123 */
 static int hf_dhcp_option_cl_dss_id_option = -1;			/* 123 CL */
@@ -601,7 +603,6 @@ static int hf_dhcp_option_pcp_server = -1;				/* 158 */
 static int hf_dhcp_option_portparams_offset = -1;			/* 159 */
 static int hf_dhcp_option_portparams_psid_length = -1;			/* 159 */
 static int hf_dhcp_option_portparams_psid = -1;				/* 159 */
-static int hf_dhcp_option_captive_portal = -1;				/* 160 */
 static int hf_dhcp_option_mudurl = -1;					/* 161 */
 static int hf_dhcp_option_pxe_config_file = -1;				/* 209 */
 static int hf_dhcp_option_pxe_path_prefix = -1;				/* 210 */
@@ -1488,7 +1489,7 @@ static struct opt_info default_dhcp_opt[DHCP_OPT_NUM] = {
 /* 111 */ { "Unassigned",				opaque, NULL },
 /* 112 */ { "NetInfo Parent Server Address",		ipv4_list, &hf_dhcp_option_netinfo_parent_server_address },
 /* 113 */ { "NetInfo Parent Server Tag",		string, &hf_dhcp_option_netinfo_parent_server_tag },
-/* 114 */ { "URL [TODO:RFC3679]",			opaque, NULL },
+/* 114 */ { "DHCP Captive-Portal",			special, NULL },
 /* 115 */ { "Removed/Unassigned",			opaque, NULL },
 /* 116 */ { "DHCP Auto-Configuration",			val_u_byte, &hf_dhcp_option_dhcp_auto_configuration },
 /* 117 */ { "Name Service Search",			special, NULL },
@@ -1534,7 +1535,7 @@ static struct opt_info default_dhcp_opt[DHCP_OPT_NUM] = {
 /* 157 */ { "Leasequery Data Source",			val_boolean, &hf_dhcp_option_bulk_lease_data_source },
 /* 158 */ { "PCP Server",				special, NULL },
 /* 159 */ { "Portparams",				special, NULL },
-/* 160 */ { "DHCP Captive-Portal",			special, NULL },
+/* 160 */ { "Unassigned (ex DHCP Captive-Portal)",	special, NULL }, /* Previously assigned by [RFC7710]; known to also be used by Polycom. */
 /* 161 */ { "Manufacturer Usage Description",		string, &hf_dhcp_option_mudurl},
 /* 162 */ { "Unassigned",				opaque, NULL },
 /* 163 */ { "Unassigned",				opaque, NULL },
@@ -2369,7 +2370,7 @@ dissect_dhcpopt_user_class_information(tvbuff_t *tvb, packet_info *pinfo, proto_
 			 * "MSFT 5.0") such as "RRAS.Microsoft" and others like "iPXE".
 			 * In the unlikely case that the first character can be interpreted as a valid length the next iteration
 			 * of this while loop will catch that.
-			 * https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=16349
+			 * https://gitlab.com/wireshark/wireshark/-/issues/16349
 			 * https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-dhcpe/fe8a2dd4-1e8c-4546-bacd-4ae10de02058
 			 */
 			proto_item *expert_ti = proto_tree_add_item(tree, hf_dhcp_option77_user_class_text, tvb, offset, uci_len, ENC_ASCII|ENC_NA);
@@ -3024,7 +3025,7 @@ dissect_dhcpopt_coordinate_based_location(tvbuff_t *tvb, packet_info *pinfo, pro
 			proto_tree_add_double_format_value(tree, hf_dhcp_option_rfc3825_latitude_res, tvb, offset, 1, location.latitude_res, "%15.10f", location.latitude_res);
 			proto_tree_add_double_format_value(tree, hf_dhcp_option_rfc3825_longitude_res, tvb, offset+5, 1, location.longitude_res, "%15.10f", location.longitude_res);
 			proto_tree_add_double_format_value(tree, hf_dhcp_option_rfc3825_altitude, tvb, offset+12, 4, location.altitude, "%15.10f", location.altitude);
-			proto_tree_add_double_format_value(tree, hf_dhcp_option_rfc3825_altitide_res, tvb, offset+10, 2, location.altitude_res, "%15.10f", location.altitude_res);
+			proto_tree_add_double_format_value(tree, hf_dhcp_option_rfc3825_altitude_res, tvb, offset+10, 2, location.altitude_res, "%15.10f", location.altitude_res);
 			proto_tree_add_uint(tree, hf_dhcp_option_rfc3825_altitude_type, tvb, offset+10, 1, location.altitude_type);
 			proto_tree_add_uint(tree, hf_dhcp_option_rfc3825_map_datum, tvb, offset+15, 1, location.datum_type);
 		}
@@ -4711,19 +4712,33 @@ dissect_apple_bsdp_vendor_info_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tre
 
 /* Cisco Vendor Specific Information */
 
+/*
+        {  1, "1" },            * D,R: 03 *
+        {  2, "2" },            * D,R: 01 *
+        {  3, "3" },            * D,R: 00 01 # O,A: 00 02 *
+        {  4, "Node ID" },      * O,A: 00 00 00 ca *
+        {  5, "5" },            * O,A: 01 *
+        {  6, "6" },            * D,R: 01 # O,A: 01 *
+        {  7, "Model" },        * D,R: N9K-C9336PQ *
+        {  8, "APIC UUID" },    * O,A: 09bced36-69f1-11e6-96ce-8baf09371338 *
+        {  9, "Fabricname" },   * O,A: ams-fab1 *
+        { 10, "10" },           * D,R: 00 00 00 01 *
+        { 11, "SerialNo" },     * D,R: SAL1926J4QW *
+        { 12, "Client Int" },   * D,O: eth1/20.20 # R,A: eth1/20.20 *
+*/
 static const value_string option43_cisco_suboption_vals[] = {
-	{  1, "Unk-1" },	/* Number */
-	{  2, "Unk-2" },	/* Number */
-	{  3, "Unk-3" },	/* Number */
-	{  4, "Node ID" },	/* Number */
-	{  5, "Unk-5" },	/* Number */
-	{  6, "Unk-6" },	/* Number */
-	{  7, "Model" },	/* String */
-	{  8, "APIC UUID" },	/* String */
-	{  9, "Fabricname" },	/* String */
-	{ 10, "Unk-10" },	/* Number */
-	{ 11, "SerialNo" },	/* String */
-	{ 12, "Client Int" },	/* String */
+	{  1, "Unk-1 (Node role?)" },		/* uint8 */
+	{  2, "Unk-2 (Spine level?)" },		/* uint8 */
+	{  3, "Unk-3 (Pod ID?)" },		/* uint16 */
+	{  4, "Node ID" },			/* uint32 */
+	{  5, "Unk-5" },			/* uint8 */
+	{  6, "Unk-6" },			/* uint8 */
+	{  7, "Model" },			/* String */
+	{  8, "APIC UUID" },			/* String */
+	{  9, "Fabricname" },			/* String */
+	{ 10, "Unk-10" },			/* uint32 */
+	{ 11, "SerialNo" },			/* String */
+	{ 12, "Interfacename" },		/* String */
 
 	{ 0, NULL}
 };
@@ -9506,8 +9521,8 @@ proto_register_dhcp(void)
 		    FT_DOUBLE, BASE_NONE, NULL, 0x0,
 		    "Option 123: Altitude", HFILL }},
 
-		{ &hf_dhcp_option_rfc3825_altitide_res,
-		  { "Altitude resolution", "dhcp.option.rfc3825.altitide_res",
+		{ &hf_dhcp_option_rfc3825_altitude_res,
+		  { "Altitude resolution", "dhcp.option.rfc3825.altitude_res",
 		    FT_DOUBLE, BASE_NONE, NULL, 0x0,
 		    "Option 123: Altitude resolution", HFILL }},
 
@@ -10257,6 +10272,7 @@ proto_reg_handoff_dhcp(void)
 	dissector_add_uint("dhcp.option", 94, create_dissector_handle( dissect_dhcpopt_client_network_interface_id, -1 ));
 	dissector_add_uint("dhcp.option", 97, create_dissector_handle( dissect_dhcpopt_client_identifier_uuid, -1 ));
 	dissector_add_uint("dhcp.option", 99, create_dissector_handle( dissect_dhcpopt_civic_location, -1 ));
+	dissector_add_uint("dhcp.option", 114, create_dissector_handle( dissect_dhcpopt_dhcp_captive_portal, -1 ));
 	dissector_add_uint("dhcp.option", 117, create_dissector_handle( dissect_dhcpopt_name_server_search, -1 ));
 	dissector_add_uint("dhcp.option", 119, create_dissector_handle( dissect_dhcpopt_dhcp_domain_search, -1 ));
 	dissector_add_uint("dhcp.option", 120, create_dissector_handle( dissect_dhcpopt_sip_servers, -1 ));

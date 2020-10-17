@@ -30,7 +30,7 @@
 #include <QTreeWidgetItem>
 #include <QTreeWidgetItemIterator>
 
-#include <ui/qt/utils/tango_colors.h>
+#include <ui/qt/utils/color_utils.h>
 
 /*
  * @file RTP stream dialog
@@ -105,8 +105,8 @@ public:
         if (calc.problem) {
             setText(status_col_, UTF8_BULLET);
             setTextAlignment(status_col_, Qt::AlignCenter);
-            QColor bgColor(ws_css_warn_background);
-            QColor textColor(ws_css_warn_text);
+            QColor bgColor(ColorUtils::warningBackground());
+            QColor textColor(QApplication::palette().text().color());
             for (int i = 0; i < columnCount(); i++) {
                 QBrush bgBrush = background(i);
                 bgBrush.setColor(bgColor);
@@ -228,7 +228,7 @@ RtpStreamDialog::RtpStreamDialog(QWidget &parent, CaptureFile &cf) :
     find_reverse_button_->setToolTip(ui->actionFindReverse->toolTip());
     prepare_button_ = ui->buttonBox->addButton(ui->actionPrepareFilter->text(), QDialogButtonBox::ApplyRole);
     prepare_button_->setToolTip(ui->actionPrepareFilter->toolTip());
-    export_button_ = ui->buttonBox->addButton(tr("Export" UTF8_HORIZONTAL_ELLIPSIS), QDialogButtonBox::ApplyRole);
+    export_button_ = ui->buttonBox->addButton(tr("Export…"), QDialogButtonBox::ApplyRole);
     export_button_->setToolTip(ui->actionExportAsRtpDump->toolTip());
     copy_button_ = ui->buttonBox->addButton(tr("Copy"), QDialogButtonBox::ApplyRole);
     analyze_button_ = ui->buttonBox->addButton(ui->actionAnalyze->text(), QDialogButtonBox::ApplyRole);
@@ -502,7 +502,7 @@ void RtpStreamDialog::on_actionExportAsRtpDump_triggered()
         QDir path(wsApp->lastOpenDir());
         QString save_file = path.canonicalPath() + "/" + cap_file_.fileBaseName();
         QString extension;
-        file_name = WiresharkFileDialog::getSaveFileName(this, wsApp->windowTitleString(tr("Save RTPDump As" UTF8_HORIZONTAL_ELLIPSIS)),
+        file_name = WiresharkFileDialog::getSaveFileName(this, wsApp->windowTitleString(tr("Save RTPDump As…")),
                                                  save_file, "RTPDump Format (*.rtpdump)", &extension);
 
         if (file_name.length() > 0) {

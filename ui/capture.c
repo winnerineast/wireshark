@@ -27,6 +27,7 @@
 #include "ui/capture_info.h"
 #include "ui/capture_ui_utils.h"
 #include "ui/util.h"
+#include "ui/urls.h"
 #include "caputils/capture-pcap-util.h"
 #include <epan/prefs.h>
 
@@ -268,7 +269,7 @@ capture_input_read_all(capture_session *cap_session, gboolean is_tempfile,
                 "\n"
                 "Help about capturing can be found at\n"
                 "\n"
-                "       https://wiki.wireshark.org/CaptureSetup"
+                "       " WS_WIKI_URL("CaptureSetup")
 #ifdef _WIN32
                 "\n\n"
                 "Wireless (Wi-Fi/WLAN):\n"
@@ -365,6 +366,20 @@ cf_open_error_message(int err, gchar *err_info, gboolean for_writing,
             g_snprintf(errmsg_errno, sizeof(errmsg_errno),
                        "The compressed file \"%%s\" appears to be damaged or corrupt.\n"
                        "(%s)", err_info != NULL ? err_info : "no information supplied");
+            g_free(err_info);
+            errmsg = errmsg_errno;
+            break;
+
+        case WTAP_ERR_INTERNAL:
+            if (for_writing) {
+                g_snprintf(errmsg_errno, sizeof(errmsg_errno),
+                           "An internal error occurred creating the file \"%%s\".\n"
+                           "(%s)", err_info != NULL ? err_info : "no information supplied");
+            } else {
+                g_snprintf(errmsg_errno, sizeof(errmsg_errno),
+                           "An internal error occurred opening the file \"%%s\".\n"
+                           "(%s)", err_info != NULL ? err_info : "no information supplied");
+            }
             g_free(err_info);
             errmsg = errmsg_errno;
             break;
@@ -731,7 +746,7 @@ capture_input_closed(capture_session *cap_session, gchar *msg)
                                 "\n"
                                 "Help about capturing can be found at\n"
                                 "\n"
-                                "       https://wiki.wireshark.org/CaptureSetup"
+                                "       " WS_WIKI_URL("CaptureSetup")
 #ifdef _WIN32
                                 "\n\n"
                                 "Wireless (Wi-Fi/WLAN):\n"

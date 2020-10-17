@@ -245,7 +245,6 @@ libwireshark.so.0 libwireshark0 #MINVER#
  decode_as_default_reset@Base 1.12.0~rc1
  decode_as_list@Base 1.12.0~rc1
  decode_bits_in_field@Base 1.9.1
- decode_bits_in_field_long@Base 3.3.0
  decode_build_reset_list@Base 2.3.0
  decode_cleanup@Base 3.3.0
  decode_clear_all@Base 2.3.0
@@ -798,6 +797,7 @@ libwireshark.so.0 libwireshark0 #MINVER#
  get_eo_tap_listener_name@Base 2.3.0
  get_eth_hashtable@Base 1.12.0~rc1
  get_ether_name@Base 1.9.1
+ get_etsi_ts_102_221_annex_a_string@Base 3.3.1
  get_follow_address_func@Base 2.1.0
  get_follow_by_name@Base 2.1.0
  get_follow_conv_func@Base 2.1.0
@@ -848,13 +848,15 @@ libwireshark.so.0 libwireshark0 #MINVER#
  get_tcp_conversation_data@Base 1.99.0
  get_tcp_stream_count@Base 1.12.0~rc1
  get_token_len@Base 1.9.1
- get_ts_23_038_7bits_string@Base 1.12.0~rc1
+ get_ts_23_038_7bits_string_packed@Base 3.3.1
+ get_ts_23_038_7bits_string_unpacked@Base 3.3.1
  get_ucs_2_string@Base 1.12.0~rc1
  get_ucs_4_string@Base 1.12.0~rc1
  get_udp_conversation_data@Base 1.99.2
  get_udp_stream_count@Base 1.12.0~rc1
  get_unichar2_string@Base 1.12.0~rc1
  get_utf_16_string@Base 1.12.0~rc1
+ get_utf_8_string@Base 3.3.1
  get_vlan_hash_table@Base 2.1.0
  get_wka_hashtable@Base 1.12.0~rc1
  get_quic_connections_count@Base 3.1.1
@@ -1254,6 +1256,7 @@ libwireshark.so.0 libwireshark0 #MINVER#
  proto_tree_add_item_ret_display_string_and_length@Base 3.1.0
  proto_tree_add_item_ret_int64@Base 3.1.1
  proto_tree_add_item_ret_int@Base 1.99.6
+ proto_tree_add_item_ret_ipv4@Base 3.3.2
  proto_tree_add_item_ret_length@Base 2.1.0
  proto_tree_add_item_ret_time_string@Base 3.1.1
  proto_tree_add_item_ret_string@Base 2.1.0
@@ -1276,7 +1279,7 @@ libwireshark.so.0 libwireshark0 #MINVER#
  proto_tree_add_time_format@Base 1.9.1
  proto_tree_add_time_format_value@Base 1.9.1
  proto_tree_add_time_item@Base 1.12.0~rc1
- proto_tree_add_ts_23_038_7bits_item@Base 1.12.0~rc1
+ proto_tree_add_ts_23_038_7bits_packed_item@Base 3.3.1
  proto_tree_add_uint64@Base 1.9.1
  proto_tree_add_uint64_bits_format_value@Base 1.99.6
  proto_tree_add_uint64_format@Base 1.9.1
@@ -1719,6 +1722,7 @@ libwireshark.so.0 libwireshark0 #MINVER#
  tvb_ensure_bytes_exist@Base 1.9.1
  tvb_ensure_bytes_exist64@Base 1.99.0
  tvb_ensure_captured_length_remaining@Base 1.12.0~rc1
+ tvb_get_etsi_ts_102_221_annex_a_string@Base 3.3.1
  tvb_find_guint8@Base 1.9.1
  tvb_find_guint16@Base 2.3.0
  tvb_find_line_end@Base 1.9.1
@@ -1806,7 +1810,8 @@ libwireshark.so.0 libwireshark0 #MINVER#
  tvb_get_stringz_enc@Base 1.9.1
  tvb_get_stringzpad@Base 1.12.0~rc1
  tvb_get_token_len@Base 2.9.0
- tvb_get_ts_23_038_7bits_string@Base 1.12.0~rc1
+ tvb_get_ts_23_038_7bits_string_packed@Base 3.3.1
+ tvb_get_ts_23_038_7bits_string_unpacked@Base 3.3.1
  tvb_get_varint@Base 2.5.0
  tvb_memcpy@Base 1.9.1
  tvb_memdup@Base 1.9.1
@@ -2047,6 +2052,7 @@ libwireshark.so.0 libwireshark0 #MINVER#
  wmem_str_hash@Base 1.12.0~rc1
  wmem_strbuf_append@Base 1.9.1
  wmem_strbuf_append_c@Base 1.12.0~rc1
+ wmem_strbuf_append_len@Base 3.3.1
  wmem_strbuf_append_printf@Base 1.9.1
  wmem_strbuf_append_unichar@Base 1.12.0~rc1
  wmem_strbuf_append_vprintf@Base 3.1.1

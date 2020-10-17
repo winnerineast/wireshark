@@ -107,7 +107,6 @@ static int hf_pfcp_time_quota_mechanism_bti_type = -1;
 static int hf_pfcp_time_quota_mechanism_bti = -1;
 static int hf_pfcp_multiplier_value_digits = -1;
 static int hf_pfcp_multiplier_exponent = -1;
-static int hf_pfcp_aggregated_urr_id_ie_urr_id = -1;
 
 static int hf_pfcp_ue_ip_address_flags = -1;
 static int hf_pfcp_ue_ip_address_flag_b0_v6 = -1;
@@ -181,7 +180,6 @@ static int hf_pfcp_redirect_server_addr_len = -1;
 static int hf_pfcp_redirect_server_address = -1;
 static int hf_pfcp_other_redirect_server_addr_len = -1;
 static int hf_pfcp_other_redirect_server_address = -1;
-static int hf_pfcp_linked_urr_id = -1;
 static int hf_pfcp_outer_hdr_desc = -1;
 static int hf_pfcp_outer_hdr_creation_teid = -1;
 static int hf_pfcp_outer_hdr_creation_ipv4 = -1;
@@ -505,7 +503,6 @@ static int hf_pfcp_c_tag_flags_b0_pcp = -1;
 static int hf_pfcp_c_tag_cvid = -1;
 static int hf_pfcp_c_tag_dei_flag = -1;
 static int hf_pfcp_c_tag_pcp_value = -1;
-static int hf_pfcp_c_tag_cvid_value = -1;
 
 static int hf_pfcp_s_tag_flags = -1;
 static int hf_pfcp_s_tag_flags_b2_vid = -1;
@@ -514,7 +511,6 @@ static int hf_pfcp_s_tag_flags_b0_pcp = -1;
 static int hf_pfcp_s_tag_svid = -1;
 static int hf_pfcp_s_tag_dei_flag = -1;
 static int hf_pfcp_s_tag_pcp_value = -1;
-static int hf_pfcp_s_tag_svid_value = -1;
 
 static int hf_pfcp_ethertype = -1;
 
@@ -832,9 +828,7 @@ static int ett_pfcp_subsequent_volume_quota = -1;
 static int ett_pfcp_additional_usage_reports_information = -1;
 static int ett_pfcp_mac_address = -1;
 static int ett_pfcp_c_tag = -1;
-static int ett_pfcp_c_tag_dei = -1;
 static int ett_pfcp_s_tag = -1;
-static int ett_pfcp_s_tag_dei = -1;
 static int ett_pfcp_proxying = -1;
 static int ett_pfcp_ethernet_filter_properties = -1;
 static int ett_pfcp_user_id = -1;
@@ -1726,7 +1720,11 @@ static const true_false_string tfs_eligible_ineligible = {
 
 static int decode_pfcp_c_tag(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, proto_item *item _U_, gint offset)
 {
-    guint64 flags_val;
+    static const crumb_spec_t pfcp_c_tag_cvid_crumbs[] = {
+        { 0, 4 },
+        { 8, 8 },
+        { 0, 0 }
+    };
 
     static int * const pfcp_c_tag_flags[] = {
         &hf_pfcp_spare_b7_b3,
@@ -1736,28 +1734,28 @@ static int decode_pfcp_c_tag(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *
         NULL
     };
     /* Octet 5  Spare   VID   DEI   PCP */
-    proto_tree_add_bitmask_with_flags_ret_uint64(tree, tvb, offset, hf_pfcp_c_tag_flags,
-        ett_pfcp_c_tag, pfcp_c_tag_flags, ENC_BIG_ENDIAN, BMT_NO_FALSE | BMT_NO_INT, &flags_val);
+    proto_tree_add_bitmask_with_flags(tree, tvb, offset, hf_pfcp_c_tag_flags,
+        ett_pfcp_c_tag, pfcp_c_tag_flags, ENC_BIG_ENDIAN, BMT_NO_FALSE | BMT_NO_INT);
     offset += 1;
 
     //  Octet     8     7     6     5     4     3     2     1
-    //    6    | C-VID                  |DEI|   PCP value     |
-    proto_tree_add_item(tree, hf_pfcp_c_tag_cvid, tvb, offset, 1, ENC_BIG_ENDIAN);
-    proto_tree_add_bitmask_with_flags(tree, tvb, offset, hf_pfcp_c_tag_dei_flag,
-        ett_pfcp_c_tag_dei, pfcp_c_tag_flags, ENC_BIG_ENDIAN, BMT_NO_FALSE | BMT_NO_INT | BMT_NO_TFS);
+    //    6    | C-VID value            |DEI|   PCP value     |
+    //    7    | C-VID value                                  |
+    proto_tree_add_split_bits_item_ret_val(tree, hf_pfcp_c_tag_cvid, tvb, offset << 3, pfcp_c_tag_cvid_crumbs, NULL);
+    proto_tree_add_item(tree, hf_pfcp_c_tag_dei_flag, tvb, offset, 1, ENC_BIG_ENDIAN);
     proto_tree_add_item(tree, hf_pfcp_c_tag_pcp_value, tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset += 1;
-
-    // Octet 7 C-VID value
-    proto_tree_add_item(tree, hf_pfcp_c_tag_cvid_value, tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset += 1;
+    offset += 2;
 
     return offset;
 }
 
 static int decode_pfcp_s_tag(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, proto_item *item _U_, guint offset)
 {
-    guint64 flags_val;
+    static const crumb_spec_t pfcp_s_tag_svid_crumbs[] = {
+        { 0, 4 },
+        { 8, 8 },
+        { 0, 0 }
+    };
 
     static int * const pfcp_s_tag_flags[] = {
         &hf_pfcp_spare_b7_b3,
@@ -1767,21 +1765,17 @@ static int decode_pfcp_s_tag(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *
         NULL
     };
     /* Octet 5  Spare   VID   DEI   PCP */
-    proto_tree_add_bitmask_with_flags_ret_uint64(tree, tvb, offset, hf_pfcp_s_tag_flags,
-        ett_pfcp_s_tag, pfcp_s_tag_flags, ENC_BIG_ENDIAN, BMT_NO_FALSE | BMT_NO_INT, &flags_val);
+    proto_tree_add_bitmask_with_flags(tree, tvb, offset, hf_pfcp_s_tag_flags,
+        ett_pfcp_s_tag, pfcp_s_tag_flags, ENC_BIG_ENDIAN, BMT_NO_FALSE | BMT_NO_INT);
     offset += 1;
 
     //  Octet     8     7     6     5     4     3     2     1
-    //    6    | S-VID                  |DEI|   PCP value     |
-    proto_tree_add_item(tree, hf_pfcp_s_tag_svid, tvb, offset, 1, ENC_BIG_ENDIAN);
-    proto_tree_add_bitmask_with_flags(tree, tvb, offset, hf_pfcp_s_tag_dei_flag,
-        ett_pfcp_s_tag_dei, pfcp_s_tag_flags, ENC_BIG_ENDIAN, BMT_NO_FALSE | BMT_NO_INT | BMT_NO_TFS);
+    //    6    | S-VID value            |DEI|   PCP value     |
+    //    7    | S-VID value                                  |
+    proto_tree_add_split_bits_item_ret_val(tree, hf_pfcp_s_tag_svid, tvb, offset << 3, pfcp_s_tag_svid_crumbs, NULL);
+    proto_tree_add_item(tree, hf_pfcp_s_tag_dei_flag, tvb, offset, 1, ENC_BIG_ENDIAN);
     proto_tree_add_item(tree, hf_pfcp_s_tag_pcp_value, tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset += 1;
-
-    // Octet 7 S-VID value
-    proto_tree_add_item(tree, hf_pfcp_s_tag_svid_value, tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset += 1;
+    offset += 2;
 
     return offset;
 }
@@ -3972,14 +3966,11 @@ static void
 dissect_pfcp_linked_urr_id(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, proto_item *item, guint16 length, guint8 message_type _U_, pfcp_session_args_t *args _U_)
 {
     int offset = 0;
-    guint32 value;
+
     /* Octet 5 to 8 Linked URR ID value
     * The Linked URR ID value shall be encoded as an Unsigned32 binary integer value
     */
-    proto_tree_add_item_ret_uint(tree, hf_pfcp_linked_urr_id, tvb, offset, 4, ENC_BIG_ENDIAN, &value);
-    offset += 4;
-
-    proto_item_append_text(item, "%u", value);
+    offset = decode_pfcp_urr_id(tvb, pinfo, tree, item, offset);
 
     if (offset < length) {
         proto_tree_add_expert(tree, pinfo, &ei_pfcp_ie_data_not_decoded, tvb, offset, -1);
@@ -5102,11 +5093,8 @@ dissect_pfcp_multiplier(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 static void
 dissect_pfcp_aggregated_urr_id_ie(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, proto_item *item, guint16 length _U_, guint8 message_type _U_, pfcp_session_args_t *args _U_)
 {
-    guint32 value;
     /* 5 to 8  URR ID */
-    proto_tree_add_item_ret_uint(tree, hf_pfcp_aggregated_urr_id_ie_urr_id, tvb, 0, 4, ENC_BIG_ENDIAN, &value);
-
-    proto_item_append_text(item, "%u", value);
+    decode_pfcp_urr_id(tvb, pinfo, tree, item, 0);
 }
 
 /*
@@ -9153,11 +9141,6 @@ proto_register_pfcp(void)
             FT_UINT32, BASE_DEC, NULL, 0x0,
             NULL, HFILL }
         },
-        { &hf_pfcp_aggregated_urr_id_ie_urr_id,
-        { "URR ID", "pfcp.aggregated_urr_id_ie.urr_id",
-            FT_UINT32, BASE_DEC, NULL, 0x0,
-            NULL, HFILL }
-        },
         { &hf_pfcp_failed_rule_id_type,
         { "Failed Rule ID Type", "pfcp.failed_rule_id_type",
             FT_UINT8, BASE_DEC, VALS(pfcp_failed_rule_id_type_vals), 0x7,
@@ -9502,11 +9485,6 @@ proto_register_pfcp(void)
         { &hf_pfcp_other_redirect_server_address,
         { "Other Redirect Server Address", "pfcp.other_redirect_server_address",
             FT_STRING, BASE_NONE, NULL, 0x0,
-            NULL, HFILL }
-        },
-        { &hf_pfcp_linked_urr_id,
-        { "Linked URR ID", "pfcp.linked_urr_id",
-            FT_UINT32, BASE_DEC, NULL, 0x0,
             NULL, HFILL }
         },
         { &hf_pfcp_outer_hdr_desc,
@@ -9917,7 +9895,7 @@ proto_register_pfcp(void)
             NULL, HFILL }
         },
         { &hf_pfcp_gate_status_b0b1_dlgate,
-        { "DL Gate", "pfcp.gate_status.ulgate",
+        { "DL Gate", "pfcp.gate_status.dlgate",
             FT_UINT8, BASE_DEC, VALS(pfcp_gate_status_vals), 0x03,
             NULL, HFILL }
         },
@@ -10948,8 +10926,8 @@ proto_register_pfcp(void)
             "VLAN identifier", HFILL }
         },
         { &hf_pfcp_c_tag_cvid,
-        { "C-VLAN", "pfcp.c_tag.cvid",
-            FT_UINT8, BASE_HEX, NULL, 0xF0,
+        { "C-VID", "pfcp.c_tag.cvid",
+            FT_UINT16, BASE_HEX, NULL, 0x0,
             NULL, HFILL }
         },
         { &hf_pfcp_c_tag_dei_flag,
@@ -10960,11 +10938,6 @@ proto_register_pfcp(void)
         { &hf_pfcp_c_tag_pcp_value,
         { "Priority code point (PCP)", "pfcp.c_tag.pcp",
             FT_UINT8, BASE_DEC, VALS(pfcp_vlan_tag_pcp_vals), 0x07,
-            NULL, HFILL }
-        },
-        { &hf_pfcp_c_tag_cvid_value,
-        { "C-VLAN value", "pfcp.c_tag.cvid_value",
-            FT_UINT8, BASE_HEX, NULL, 0x0,
             NULL, HFILL }
         },
 
@@ -10989,8 +10962,8 @@ proto_register_pfcp(void)
             "VLAN identifier", HFILL }
         },
         { &hf_pfcp_s_tag_svid,
-        { "S-VLAN", "pfcp.s_tag.svid",
-            FT_UINT8, BASE_HEX, NULL, 0xF0,
+        { "S-VID", "pfcp.s_tag.svid",
+            FT_UINT16, BASE_HEX, NULL, 0x0,
             NULL, HFILL }
         },
         { &hf_pfcp_s_tag_dei_flag,
@@ -11001,11 +10974,6 @@ proto_register_pfcp(void)
         { &hf_pfcp_s_tag_pcp_value,
         { "Priority code point (PCP)", "pfcp.s_tag.pcp",
             FT_UINT8, BASE_DEC, VALS(pfcp_vlan_tag_pcp_vals), 0x07,
-            NULL, HFILL }
-        },
-        { &hf_pfcp_s_tag_svid_value,
-        { "S-VLAN value", "pfcp.s_tag.svid_value",
-            FT_UINT8, BASE_HEX, NULL, 0x0,
             NULL, HFILL }
         },
 
@@ -12092,7 +12060,7 @@ proto_register_pfcp(void)
     };
 
     /* Setup protocol subtree array */
-#define NUM_INDIVIDUAL_ELEMS_PFCP    79
+#define NUM_INDIVIDUAL_ELEMS_PFCP    77
     gint *ett[NUM_INDIVIDUAL_ELEMS_PFCP +
         (NUM_PFCP_IES - 1)];
 
@@ -12136,45 +12104,43 @@ proto_register_pfcp(void)
     ett[37] = &ett_pfcp_additional_usage_reports_information;
     ett[38] = &ett_pfcp_mac_address;
     ett[39] = &ett_pfcp_c_tag;
-    ett[40] = &ett_pfcp_c_tag_dei;
-    ett[41] = &ett_pfcp_s_tag;
-    ett[42] = &ett_pfcp_s_tag_dei;
-    ett[43] = &ett_pfcp_proxying;
-    ett[44] = &ett_pfcp_ethernet_filter_properties;
-    ett[45] = &ett_pfcp_user_id;
-    ett[46] = &ett_pfcp_ethernet_pdu_session_information;
-    ett[47] = &ett_pfcp_sdf_filter_id;
-    ett[48] = &ett_pfcp_adf;
-    ett[49] = &ett_pfcp_aurl;
-    ett[50] = &ett_pfcp_adnp;
-    ett[51] = &ett_pfcp_pfcpsrreq;
-    ett[52] = &ett_pfcp_pfcpaureq;
-    ett[53] = &ett_pfcp_alternative_smf_ip_address_flags;
-    ett[54] = &ett_pfcp_packet_replication_and_detection_carry_on_information;
-    ett[55] = &ett_pfcp_pfcpasrsp_flags;
-    ett[56] = &ett_pfcp_cp_pfcp_entity_ip_address_flags;
-    ett[57] = &ett_pfcp_pfcpsereq_flags;
-    ett[58] = &ett_pfcp_ip_multicast_address_flags;
-    ett[59] = &ett_pfcp_source_ip_address_flags;
-    ett[60] = &ett_pfcp_packet_rate_status;
-    ett[61] = &ett_pfcp_create_bridge_info_for_tsc;
-    ett[62] = &ett_pfcp_tsn_bridge_id;
-    ett[63] = &ett_pfcp_requested_clock_drift_control_information;
-    ett[64] = &ett_pfcp_requested_access_availability_control_information;
-    ett[65] = &ett_pfcp_mptcp_control_information;
-    ett[66] = &ett_pfcp_atsss_ll_control_information;
-    ett[67] = &ett_pfcp_pmf_control_information;
-    ett[68] = &ett_pfcp_mptcp_entity_ip_address_information;
-    ett[69] = &ett_pfcp_ue_link_specific_entity_ip_address;
-    ett[70] = &ett_pfcp_pmf_address_information;
-    ett[71] = &ett_pfcp_atsss_ll_information;
-    ett[72] = &ett_pfcp_qos_report_trigger;
-    ett[73] = &ett_pfcp_gtp_u_path_interface_type;
-    ett[74] = &ett_pfcp_requested_qos_monitoring;
-    ett[75] = &ett_pfcp_reporting_frequency;
-    ett[76] = &ett_pfcp_packet_delay_thresholds;
-    ett[77] = &ett_pfcp_qos_monitoring_measurement;
-    ett[78] = &ett_pfcp_monitoring_measurement;
+    ett[40] = &ett_pfcp_s_tag;
+    ett[41] = &ett_pfcp_proxying;
+    ett[42] = &ett_pfcp_ethernet_filter_properties;
+    ett[43] = &ett_pfcp_user_id;
+    ett[44] = &ett_pfcp_ethernet_pdu_session_information;
+    ett[45] = &ett_pfcp_sdf_filter_id;
+    ett[46] = &ett_pfcp_adf;
+    ett[47] = &ett_pfcp_aurl;
+    ett[48] = &ett_pfcp_adnp;
+    ett[49] = &ett_pfcp_pfcpsrreq;
+    ett[50] = &ett_pfcp_pfcpaureq;
+    ett[51] = &ett_pfcp_alternative_smf_ip_address_flags;
+    ett[52] = &ett_pfcp_packet_replication_and_detection_carry_on_information;
+    ett[53] = &ett_pfcp_pfcpasrsp_flags;
+    ett[54] = &ett_pfcp_cp_pfcp_entity_ip_address_flags;
+    ett[55] = &ett_pfcp_pfcpsereq_flags;
+    ett[56] = &ett_pfcp_ip_multicast_address_flags;
+    ett[57] = &ett_pfcp_source_ip_address_flags;
+    ett[58] = &ett_pfcp_packet_rate_status;
+    ett[59] = &ett_pfcp_create_bridge_info_for_tsc;
+    ett[60] = &ett_pfcp_tsn_bridge_id;
+    ett[61] = &ett_pfcp_requested_clock_drift_control_information;
+    ett[62] = &ett_pfcp_requested_access_availability_control_information;
+    ett[63] = &ett_pfcp_mptcp_control_information;
+    ett[64] = &ett_pfcp_atsss_ll_control_information;
+    ett[65] = &ett_pfcp_pmf_control_information;
+    ett[66] = &ett_pfcp_mptcp_entity_ip_address_information;
+    ett[67] = &ett_pfcp_ue_link_specific_entity_ip_address;
+    ett[68] = &ett_pfcp_pmf_address_information;
+    ett[69] = &ett_pfcp_atsss_ll_information;
+    ett[70] = &ett_pfcp_qos_report_trigger;
+    ett[71] = &ett_pfcp_gtp_u_path_interface_type;
+    ett[72] = &ett_pfcp_requested_qos_monitoring;
+    ett[73] = &ett_pfcp_reporting_frequency;
+    ett[74] = &ett_pfcp_packet_delay_thresholds;
+    ett[75] = &ett_pfcp_qos_monitoring_measurement;
+    ett[76] = &ett_pfcp_monitoring_measurement;
 
 
 

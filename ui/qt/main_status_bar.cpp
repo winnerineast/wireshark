@@ -27,7 +27,7 @@
 #include "main_status_bar.h"
 #include "profile_dialog.h"
 #include <ui/qt/utils/stock_icon.h>
-#include <ui/qt/utils/tango_colors.h>
+#include <ui/qt/utils/color_utils.h>
 #include <ui/qt/capture_file.h>
 #include <ui/qt/widgets/clickable_label.h>
 
@@ -543,13 +543,13 @@ void MainStatusBar::showProfileMenu(const QPoint &global_pos, Qt::MouseButton bu
 
         profile_menu_.setTitle(tr("Switch to"));
         QMenu ctx_menu_;
-        QAction * action = ctx_menu_.addAction(tr("Manage Profiles" UTF8_HORIZONTAL_ELLIPSIS), this, SLOT(manageProfile()));
+        QAction * action = ctx_menu_.addAction(tr("Manage Profiles…"), this, SLOT(manageProfile()));
         action->setProperty("dialog_action_", (int)ProfileDialog::ShowProfiles);
 
         ctx_menu_.addSeparator();
-        action = ctx_menu_.addAction(tr("New" UTF8_HORIZONTAL_ELLIPSIS), this, SLOT(manageProfile()));
+        action = ctx_menu_.addAction(tr("New…"), this, SLOT(manageProfile()));
         action->setProperty("dialog_action_", (int)ProfileDialog::NewProfile);
-        action = ctx_menu_.addAction(tr("Edit" UTF8_HORIZONTAL_ELLIPSIS), this, SLOT(manageProfile()));
+        action = ctx_menu_.addAction(tr("Edit…"), this, SLOT(manageProfile()));
         action->setProperty("dialog_action_", (int)ProfileDialog::EditCurrentProfile);
         action->setEnabled(enable_edit);
         action = ctx_menu_.addAction(tr("Delete"), this, SLOT(manageProfile()));
@@ -595,12 +595,10 @@ void MainStatusBar::toggleBackground(bool enabled)
     if (enabled) {
         setStyleSheet(QString(
                           "QStatusBar {"
-                          "  color: #%1;"
-                          "  background-color: #%2;"
+                          "  background-color: %2;"
                           "}"
                           )
-                      .arg(ws_css_warn_text, 6, 16, QChar('0'))
-                      .arg(ws_css_warn_background, 6, 16, QChar('0')));
+                      .arg(ColorUtils::warningBackground().name()));
     } else {
         setStyleSheet(QString());
     }

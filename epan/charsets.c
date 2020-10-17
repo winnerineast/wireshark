@@ -85,6 +85,127 @@ get_ascii_string(wmem_allocator_t *scope, const guint8 *ptr, gint length)
 }
 
 /*
+ * Given a wmem scope, a pointer, and a length, treat the string of bytes
+ * referred to by the pointer and length as a UTF-8 string, and return a
+ * pointer to a UTF-8 string, allocated using the wmem scope, with all
+ * ill-formed sequences replaced with the Unicode REPLACEMENT CHARACTER
+ * according to the recommended "best practices" given in the Unicode
+ * Standard and specified by W3C/WHATWG.
+ */
+guint8 *
+get_utf_8_string(wmem_allocator_t *scope, const guint8 *ptr, gint length)
+{
+    wmem_strbuf_t *str;
+    guint8 ch;
+    const guint8 *prev;
+    gsize unichar_len;
+
+    str = wmem_strbuf_sized_new(scope, length+1, 0);
+
+    /* See the Unicode Standard conformance chapter at
+     * https://www.unicode.org/versions/Unicode13.0.0/ch03.pdf especially
+     * Table 3-7 "Well-Formed UTF-8 Byte Sequences" and
+     * U+FFFD Substitution of Maximal Subparts. */
+    while (length > 0) {
+        ch = *ptr;
+        unichar_len = 1;
+
+        if (ch < 0x80) {
+            wmem_strbuf_append_c(str, ch);
+        } else if (ch < 0xc2 || ch > 0xf4) {
+            wmem_strbuf_append_unichar(str, UNREPL);
+        } else {
+            prev = ptr;
+            if (ch < 0xe0) { /* 110xxxxx, 2 byte char */
+                unichar_len = 2;
+            } else if (ch < 0xf0) { /* 1110xxxx, 3 byte char */
+                unichar_len = 3;
+                ptr++;
+                length--;
+                if (length < 1) {
+                    wmem_strbuf_append_unichar(str, UNREPL);
+                    continue;
+                }
+                switch (ch) {
+                    case 0xe0:
+                        if (*ptr < 0xa0 || *ptr > 0xbf) {
+                            wmem_strbuf_append_unichar(str, UNREPL);
+                            continue;
+                        }
+                        break;
+                    case 0xed:
+                        if (*ptr < 0x80 || *ptr > 0x9f) {
+                            wmem_strbuf_append_unichar(str, UNREPL);
+                            continue;
+                        }
+                        break;
+                    default:
+                        if (*ptr < 0x80 || *ptr > 0xbf) {
+                            wmem_strbuf_append_unichar(str, UNREPL);
+                            continue;
+                        }
+                }
+            } else { /* 11110xxx, 4 byte char - > 0xf4 excluded above */
+                unichar_len = 4;
+                ptr++;
+                length--;
+                if (length < 1) {
+                    wmem_strbuf_append_unichar(str, UNREPL);
+                    continue;
+                }
+                switch (ch) {
+                    case 0xf0:
+                        if (*ptr < 0x90 || *ptr > 0xbf) {
+                            wmem_strbuf_append_unichar(str, UNREPL);
+                            continue;
+                        }
+                        break;
+                    case 0xf4:
+                        if (*ptr < 0x80 || *ptr > 0x8f) {
+                            wmem_strbuf_append_unichar(str, UNREPL);
+                            continue;
+                        }
+                        break;
+                    default:
+                        if (*ptr < 0x80 || *ptr > 0xbf) {
+                            wmem_strbuf_append_unichar(str, UNREPL);
+                            continue;
+                        }
+                }
+                ptr++;
+                length--;
+                if (length < 1) {
+                    wmem_strbuf_append_unichar(str, UNREPL);
+                    continue;
+                }
+                if (*ptr < 0x80 || *ptr > 0xbf) {
+                    wmem_strbuf_append_unichar(str, UNREPL);
+                    continue;
+                }
+            }
+
+            ptr++;
+            length--;
+            if (length < 1) {
+                wmem_strbuf_append_unichar(str, UNREPL);
+                continue;
+            }
+            if (*ptr < 0x80 || *ptr > 0xbf) {
+                wmem_strbuf_append_unichar(str, UNREPL);
+                continue;
+            } else {
+                wmem_strbuf_append_len(str, prev, unichar_len);
+            }
+        }
+
+        ptr++;
+        length--;
+    }
+
+    return (guint8 *) wmem_strbuf_finalize(str);
+}
+
+/*
  * ISO 646 "Basic code table".
  */
 const gunichar2 charset_table_iso_646_basic[0x80] = {
@@ -917,23 +1038,29 @@ handle_ts_23_038_char(wmem_strbuf_t *strbuf, guint8 code_point,
          */
         saw_escape = TRUE;
     } else {
-        /*
-         * Have we seen an escape?
-         */
-        if (saw_escape) {
-            saw_escape = FALSE;
-            uchar = GSMext_to_UNICHAR(code_point);
+        if (!(code_point & 0x80)) {
+            /*
+             * Code point is valid (7-bit).
+             * Have we seen an escape?
+             */
+            if (saw_escape) {
+                saw_escape = FALSE;
+                uchar = GSMext_to_UNICHAR(code_point);
+            } else {
+                uchar = GSM_to_UNICHAR(code_point);
+            }
+            wmem_strbuf_append_unichar(strbuf, uchar);
         } else {
-            uchar = GSM_to_UNICHAR(code_point);
+            /* Invalid - put in a REPLACEMENT CHARACTER */
+            wmem_strbuf_append_unichar(strbuf, UNREPL);
         }
-        wmem_strbuf_append_unichar(strbuf, uchar);
     }
     return saw_escape;
 }
 
 guint8 *
-get_ts_23_038_7bits_string(wmem_allocator_t *scope, const guint8 *ptr,
-                           const gint bit_offset, gint no_of_chars)
+get_ts_23_038_7bits_string_packed(wmem_allocator_t *scope, const guint8 *ptr,
+                                  const gint bit_offset, gint no_of_chars)
 {
     wmem_strbuf_t *strbuf;
     gint           char_count;                  /* character counter for string */
@@ -998,6 +1125,154 @@ get_ts_23_038_7bits_string(wmem_allocator_t *scope, const guint8 *ptr,
          * CHARACTER.
          */
         wmem_strbuf_append_unichar(strbuf, UNREPL);
+    }
+
+    return (guint8 *)wmem_strbuf_finalize(strbuf);
+}
+
+guint8 *
+get_ts_23_038_7bits_string_unpacked(wmem_allocator_t *scope, const guint8 *ptr,
+                           gint length)
+{
+    wmem_strbuf_t *strbuf;
+    gint           i;       /* Byte counter for string */
+    gboolean       saw_escape = FALSE;
+
+    strbuf = wmem_strbuf_sized_new(scope, length+1, 0);
+
+    for (i = 0; i < length; i++)
+        saw_escape = handle_ts_23_038_char(strbuf, *ptr, saw_escape);
+
+    return (guint8 *)wmem_strbuf_finalize(strbuf);
+}
+
+/*
+ * ETSI TS 102 221 Annex A.
+ */
+guint8 *
+get_etsi_ts_102_221_annex_a_string(wmem_allocator_t *scope, const guint8 *ptr,
+                                   gint length)
+{
+    guint8         string_type;
+    guint8         string_len;
+    gunichar2      ucs2_base;
+    wmem_strbuf_t *strbuf;
+    guint          i;       /* Byte counter for string */
+    gboolean       saw_escape = FALSE;
+
+    /*
+     * get the first octet.
+     */
+    if (length == 0) {
+        /* XXX - return error indication */
+        strbuf = wmem_strbuf_new(wmem_packet_scope(), "");
+        return (guint8 *)wmem_strbuf_finalize(strbuf);
+    }
+    string_type = *ptr;
+    ptr++;
+    length--;
+
+    if (string_type == 0x80) {
+        /*
+         * Annex A, coding scheme 1) - big-endian UCS-2.
+         */
+        return get_ucs_2_string(scope, ptr, length, ENC_BIG_ENDIAN);
+    }
+
+    /*
+     * Annex A, coding schemes 2) and 3):
+     *
+     *    the second byte is the number of characters (characters,
+     *    not octets) in the string;
+     *
+     *    for coding scheme 2), the third byte defines bits 15 to 8
+     *    of all UCS-2 characters in the string (all bit numbers are
+     *    1-origin, so bit 1 is the low-order bit), with bit 16 being 0;
+     *
+     *    for coding scheme 3), the third byte and fourth bytes, treated
+     *    as a big-endian value, define the base value for all UCS-2
+     *    characters in the string;
+     *
+     *    for all subsequent bytes, if bit 8 is 0, it's a character
+     *    in the GSM Default Alphabet, otherwise, it is added to
+     *    the UCS-2 base value to give a UCS-2 character.
+     *
+     * XXX - that doesn't seem to indicate that a byte of 0x1b is
+     * treated as an escape character, it just says that a single octet
+     * with the 8th bit not set is a GSM Default Alphabet character.
+     */
+
+    /*
+     * Get the string length, in characters.
+     */
+    if (length == 0) {
+        /* XXX - return error indication */
+        strbuf = wmem_strbuf_new(wmem_packet_scope(), "");
+        return (guint8 *)wmem_strbuf_finalize(strbuf);
+    }
+    string_len = *ptr;
+    ptr++;
+    length--;
+
+    strbuf = wmem_strbuf_sized_new(wmem_packet_scope(), 2*string_len+1, 0);
+
+    /*
+     * Get the UCS-2 base.
+     */
+    if (string_type == 0x81) {
+        if (length == 0) {
+            /* XXX - return error indication */
+            return (guint8 *)wmem_strbuf_finalize(strbuf);
+	}
+        ucs2_base = (*ptr) << 7;
+        ptr++;
+        length--;
+    } else if (string_type == 0x82) {
+        if (length == 0) {
+            /* XXX - return error indication */
+            return (guint8 *)wmem_strbuf_finalize(strbuf);
+	}
+        ucs2_base = (*ptr) << 8;
+        ptr++;
+        length--;
+
+        if (length == 0) {
+            /* XXX - return error indication */
+            return (guint8 *)wmem_strbuf_finalize(strbuf);
+	}
+        ucs2_base |= *ptr;
+        ptr++;
+        length--;
+    } else {
+        /* Invalid string type. */
+        /* XXX - return error indication */
+        return (guint8 *)wmem_strbuf_finalize(strbuf);
+    }
+
+    for (i = 0; i < string_len; i++) {
+        guint8 byte;
+
+        if (length == 0) {
+            /* XXX - return error indication */
+            return (guint8 *)wmem_strbuf_finalize(strbuf);
+	}
+        byte = *ptr;
+        if ((byte & 0x80) == 0) {
+            saw_escape = handle_ts_23_038_char(strbuf, byte, saw_escape);
+        } else {
+            gunichar2 uchar;
+
+            /*
+             * XXX - if saw_escape is true, this is bogus.
+             *
+             * XXX - should map lead and trail surrogate values to
+             * REPLACEMENT CHARACTERs (0xFFFD)?
+             * XXX - if there are an odd number of bytes, should put a
+             * REPLACEMENT CHARACTER at the end.
+             */
+            uchar = ucs2_base + (byte & 0x7f);
+            wmem_strbuf_append_unichar(strbuf, uchar);
+        }
     }
 
     return (guint8 *)wmem_strbuf_finalize(strbuf);

@@ -1359,7 +1359,7 @@ static const value_string gtpv2_element_type_vals[] = {
     {148, "CSG Membership Indication (CMI)"},                                   /* Extendable / 8.79 */
     {149, "Service indicator"},                                                 /* Fixed Length / 8.80 */
     {150, "Detach Type"},                                                       /* Fixed Length / 8.81 */
-    {151, "Local Distiguished Name (LDN)"},                                     /* Variable Length / 8.82 */
+    {151, "Local Distinguished Name (LDN)"},                                    /* Variable Length / 8.82 */
     {152, "Node Features"},                                                     /* Extendable / 8.83 */
     {153, "MBMS Time to Data Transfer"},                                        /* Extendable / 8.84 */
     {154, "Throttling"},                                                        /* Extendable / 8.85 */
@@ -4968,9 +4968,12 @@ static void
 dissect_gtpv2_p_tmsi(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, proto_item *item, guint16 length _U_, guint8 message_type _U_, guint8 instance _U_, session_args_t * args _U_)
 {
     int offset = 0;
+    proto_item* ti;
 
     /* The TMSI consists of 4 octets. It can be coded using a full hexadecimal representation. */
     proto_tree_add_item(tree, hf_gtpv2_p_tmsi, tvb, offset, 4, ENC_BIG_ENDIAN);
+    ti = proto_tree_add_item(tree, hf_3gpp_tmsi, tvb, offset, 4, ENC_BIG_ENDIAN);
+    proto_item_set_hidden(ti);
     proto_item_append_text(item, "%s", tvb_bytes_to_str(wmem_packet_scope(), tvb, offset, 4));
 }
 
@@ -5713,7 +5716,7 @@ dissect_gtpv2_selec_mode(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree
 static const value_string gtpv2_source_ident_types[] = {
     {0, "Cell ID"},
     {1, "RNC ID"},
-    {2, "eNodeB ID(Reserved, used in erlier v of proto.)"},
+    {2, "eNodeB ID(Reserved, used in earlier v of proto.)"},
     {0, NULL}
 };
 #endif
@@ -9041,7 +9044,7 @@ void proto_register_gtpv2(void)
         },
         { &hf_gtpv2_p_tmsi,
           {"Packet TMSI (P-TMSI)", "gtpv2.p_tmsi",
-           FT_UINT32, BASE_HEX, NULL, 0x0, NULL, HFILL}
+           FT_UINT32, BASE_DEC_HEX, NULL, 0x0, NULL, HFILL}
         },
         { &hf_gtpv2_p_tmsi_sig,
           {"P-TMSI Signature", "gtpv2.p_tmsi_sig",
@@ -10355,7 +10358,7 @@ void proto_register_gtpv2(void)
            "Old Security Context Indicator", HFILL}
         },
         { &hf_gtpv2_mm_context_nruna,
-        { "NRUNA (NR-U in 5GS Not Allowed)", "gtpv2.mm_context.nrusrna",
+        { "NRUNA (NR-U in 5GS Not Allowed)", "gtpv2.mm_context.nruna",
             FT_BOOLEAN, 8, NULL, 0x10,
             NULL, HFILL }
         },
@@ -11132,7 +11135,7 @@ void proto_register_gtpv2(void)
           NULL, HFILL }
       },
       { &hf_gtpv2_origination_ts,
-      { "Origination Time Stamp", "gtpv2.ms_ts",
+      { "Origination Time Stamp", "gtpv2.origination_ts",
           FT_ABSOLUTE_TIME, ABSOLUTE_TIME_UTC, NULL, 0x0,
           NULL, HFILL }
       },

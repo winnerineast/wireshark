@@ -12,9 +12,9 @@
 
 /*
  * See https://quicwg.org
- * https://tools.ietf.org/html/draft-ietf-quic-transport-29
- * https://tools.ietf.org/html/draft-ietf-quic-tls-29
- * https://tools.ietf.org/html/draft-ietf-quic-invariants-09
+ * https://tools.ietf.org/html/draft-ietf-quic-transport-31
+ * https://tools.ietf.org/html/draft-ietf-quic-tls-31
+ * https://tools.ietf.org/html/draft-ietf-quic-invariants-11
  *
  * Extension:
  * https://tools.ietf.org/html/draft-ferrieuxhamchaoui-quic-lossbits-03
@@ -23,14 +23,14 @@
  * https://tools.ietf.org/html/draft-iyengar-quic-delayed-ack-00
  *
  * Currently supported QUIC version(s): draft-21, draft-22, draft-23, draft-24,
- * draft-25, draft-26, draft-27, draft-28, draft-29.
+ * draft-25, draft-26, draft-27, draft-28, draft-29, draft-30, draft-31.
  * For a table of supported QUIC versions per Wireshark version, see
  * https://github.com/quicwg/base-drafts/wiki/Tools#wireshark
  *
  * Decryption is supported via TLS 1.3 secrets in the "TLS Key Log File",
  * configured either at the TLS Protocol preferences, or embedded in a pcapng
  * file. Sample captures and secrets can be found at:
- * https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=13881
+ * https://gitlab.com/wireshark/wireshark/-/issues/13881
  *
  * Limitations:
  * - STREAM offsets larger than 32-bit are unsupported.
@@ -374,7 +374,7 @@ static inline guint8 quic_draft_version(guint32 version) {
         return 22;
     }
     /* Facebook mvfst, based on draft -27. */
-    if (version == 0xfaceb002) {
+    if (version == 0xfaceb002 || version == 0xfaceb00e) {
         return 27;
     }
     /* GQUIC Q050, T050 and T051: they are not really based on any drafts,
@@ -400,6 +400,7 @@ const value_string quic_version_vals[] = {
     { 0x54303531, "Google T051" },
     { 0xfaceb001, "Facebook mvfst (draft-22)" },
     { 0xfaceb002, "Facebook mvfst (draft-27)" },
+    { 0xfaceb00e, "Facebook mvfst (Experimental)" },
     { 0xff000004, "draft-04" },
     { 0xff000005, "draft-05" },
     { 0xff000006, "draft-06" },
@@ -426,6 +427,8 @@ const value_string quic_version_vals[] = {
     { 0xff00001b, "draft-27" },
     { 0xff00001c, "draft-28" },
     { 0xff00001d, "draft-29" },
+    { 0xff00001e, "draft-30" },
+    { 0xff00001f, "draft-31" },
     { 0, NULL }
 };
 
@@ -513,8 +516,8 @@ static const range_string quic_frame_type_vals[] = {
     { 0x1d, 0x1d,   "CONNECTION_CLOSE (Application)" },
     { 0x1e, 0x1e,   "HANDSHAKE_DONE" },
     { 0x30, 0x31,   "DATAGRAM" },
-    { 0xAF, 0xAF,   "ACK_FREQUENCY" },
-    { 0x02F5, 0x02F5, "TIME_STAMP" },
+    { 0xaf, 0xaf,   "ACK_FREQUENCY" },
+    { 0x02f5, 0x02f5, "TIME_STAMP" },
     { 0,    0,        NULL },
 };
 
@@ -536,12 +539,13 @@ static const range_string quic_transport_error_code_vals[] = {
     { 0x0007, 0x0007, "FRAME_ENCODING_ERROR" },
     { 0x0008, 0x0008, "TRANSPORT_PARAMETER_ERROR" },
     { 0x0009, 0x0009, "CONNECTION_ID_LIMIT_ERROR" },
-    { 0x000A, 0x000A, "PROTOCOL_VIOLATION" },
-    { 0x000B, 0x000B, "INVALID_TOKEN" },
-    { 0x000C, 0x000C, "APPLICATION_ERROR" },
-    { 0x000D, 0x000D, "CRYPTO_BUFFER_EXCEEDED" },
-    { 0x000E, 0x000E, "KEY_UPDATE_ERROR" },
-    { 0x0100, 0x01FF, "CRYPTO_ERROR" },
+    { 0x000a, 0x000a, "PROTOCOL_VIOLATION" },
+    { 0x000b, 0x000b, "INVALID_TOKEN" },
+    { 0x000c, 0x000c, "APPLICATION_ERROR" },
+    { 0x000d, 0x000d, "CRYPTO_BUFFER_EXCEEDED" },
+    { 0x000e, 0x000e, "KEY_UPDATE_ERROR" },
+    { 0x000f, 0x000f, "AEAD_LIMIT_REACHED" },
+    { 0x0100, 0x01ff, "CRYPTO_ERROR" },
     /* 0x40 - 0x3fff Assigned via Specification Required policy. */
     { 0, 0, NULL }
 };
@@ -911,10 +915,10 @@ quic_connection_create(packet_info *pinfo, guint32 version)
         if (version == 0x51303530)
             gquic_info->version = 50;
         else if (version == 0x54303530)
-	    gquic_info->version = 150;
+            gquic_info->version = 150;
         else
-	    gquic_info->version = 151;
-        gquic_info->encoding = ENC_LITTLE_ENDIAN;
+            gquic_info->version = 151;
+        gquic_info->encoding = ENC_BIG_ENDIAN;
         gquic_info->version_valid = TRUE;
         gquic_info->server_port = pinfo->destport;
         conn->gquic_info = gquic_info;
@@ -1080,7 +1084,7 @@ process_quic_stream(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *t
         tvbuff_t *next_tvb = tvb_new_subset_remaining(tvb, offset);
         // Traverse the STREAM frame tree.
         proto_tree *top_tree = proto_tree_get_parent_tree(tree);
-        //top_tree = proto_tree_get_parent_tree(top_tree);
+        top_tree = proto_tree_get_parent_tree(top_tree);
         call_dissector_with_data(quic_info->app_handle, next_tvb, pinfo, top_tree, stream_info);
     }
 }
@@ -1149,6 +1153,14 @@ again:
     /* Else, find the most previous PDU starting before this sequence number */
     if (!msp && seq > 0) {
         msp = (struct tcp_multisegment_pdu *)wmem_tree_lookup32_le(stream->multisegment_pdus, seq-1);
+        /* Unless if we already fully reassembled the msp that covers seq-1
+         * and seq is beyond the end of that msp. In that case this segment
+         * will be the start of a new msp.
+         */
+        if (msp && (msp->flags & MSP_FLAGS_GOT_ALL_SEGMENTS) &&
+            seq >= msp->nxtpdu) {
+            msp = NULL;
+        }
     }
 
     {
@@ -1192,7 +1204,9 @@ again:
                           pinfo, reassembly_id, NULL,
                           seq - msp->seq, len,
                           nxtseq < msp->nxtpdu);
-
+        if (fh) {
+            msp->flags |= MSP_FLAGS_GOT_ALL_SEGMENTS;
+        }
         if (!PINFO_FD_VISITED(pinfo)
         && msp->flags & MSP_FLAGS_REASSEMBLE_ENTIRE_SEGMENT) {
             msp->flags &= (~MSP_FLAGS_REASSEMBLE_ENTIRE_SEGMENT);
@@ -1230,8 +1244,11 @@ again:
          * packet.
          */
         if (pinfo->desegment_len) {
-            if (!PINFO_FD_VISITED(pinfo))
+            if (!PINFO_FD_VISITED(pinfo)) {
                 must_desegment = TRUE;
+                if (msp)
+                    msp->flags &= ~MSP_FLAGS_GOT_ALL_SEGMENTS;
+            }
 
             /*
              * Set "deseg_offset" to the offset in "tvb"
@@ -1336,8 +1353,11 @@ again:
                 // TODO move tree item if needed.
 
                 if(pinfo->desegment_len) {
-                    if (!PINFO_FD_VISITED(pinfo))
+                    if (!PINFO_FD_VISITED(pinfo)) {
                         must_desegment = TRUE;
+                        if (msp)
+                            msp->flags &= ~MSP_FLAGS_GOT_ALL_SEGMENTS;
+                    }
                     /* See packet-tcp.h for details about this. */
                     deseg_offset = fh->datalen - pinfo->desegment_offset;
                     deseg_offset = tvb_reported_length(tvb) - deseg_offset;
@@ -2424,7 +2444,7 @@ quic_process_payload(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, proto_
         while (tvb_reported_length_remaining(decrypted_tvb, decrypted_offset) > 0) {
             if (quic_info->version == 0x51303530 || quic_info->version == 0x54303530 || quic_info->version == 0x54303531) {
                 decrypted_offset = dissect_gquic_frame_type(decrypted_tvb, pinfo, tree, decrypted_offset, pkn_len, quic_info->gquic_info);
-	    } else {
+            } else {
                 decrypted_offset = dissect_quic_frame_type(decrypted_tvb, pinfo, tree, decrypted_offset, quic_info, from_server);
             }
         }
@@ -2826,7 +2846,7 @@ dissect_quic_short_header(tvbuff_t *tvb, packet_info *pinfo, proto_tree *quic_tr
     if (quic_packet->pkn_len) {
         key_phase = (first_byte & SH_KP) != 0;
         proto_tree_add_uint(hdr_tree, hf_quic_short_reserved, tvb, offset, 1, first_byte);
-        proto_tree_add_boolean(hdr_tree, hf_quic_key_phase, tvb, offset, 1, key_phase);
+        proto_tree_add_boolean(hdr_tree, hf_quic_key_phase, tvb, offset, 1, key_phase<<2);
         proto_tree_add_uint(hdr_tree, hf_quic_packet_number_length, tvb, offset, 1, first_byte);
     }
     offset += 1;
@@ -3083,7 +3103,7 @@ dissect_quic(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
             } else {
                 new_offset = dissect_quic_long_header(next_tvb, pinfo, quic_tree, dgram_info, quic_packet);
             }
-        } else if (first_byte != 0) {
+        } else if (!(first_byte == 0 && offset > 0)) {
             // Firefox neqo adds unencrypted padding consisting of all zeroes
             // after an Initial Packet. Whether that is valid or not is
             // discussed at https://github.com/quicwg/base-drafts/issues/3333
@@ -3116,8 +3136,8 @@ dissect_quic_short_header_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
     }
 
     // DCID length is unknown, so extract the maximum and look for a match.
-    quic_cid_t dcid = {.len=QUIC_MAX_CID_LENGTH};
-    tvb_memcpy(tvb, dcid.cid, 1, QUIC_MAX_CID_LENGTH);
+    quic_cid_t dcid = {.len = MIN(QUIC_MAX_CID_LENGTH, tvb_captured_length(tvb) - 1 - 1 - 16)};
+    tvb_memcpy(tvb, dcid.cid, 1, dcid.len);
     gboolean from_server;
     if (!quic_connection_find(pinfo, QUIC_SHORT_PACKET, &dcid, &from_server)) {
         return FALSE;
@@ -3237,7 +3257,7 @@ static tap_packet_status
 follow_quic_tap_listener(void *tapdata, packet_info *pinfo, epan_dissect_t *edt _U_, const void *data)
 {
     // TODO fix filtering for multiple streams, see
-    // https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=16093
+    // https://gitlab.com/wireshark/wireshark/-/issues/16093
     follow_tvb_tap_listener(tapdata, pinfo, NULL, data);
     return TAP_PACKET_DONT_REDRAW;
 }

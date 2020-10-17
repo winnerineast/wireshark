@@ -343,7 +343,7 @@ nettrace_parse_begin_time(char *curr_pos, wtap_rec *rec)
  * </rawMsg>
  */
 static wtap_open_return_val
-write_packet_data(wtap_dumper *wdh, wtap_rec *rec, int *err, gchar **err_info, char *file_buf, nstime_t start_time, exported_pdu_info_t *exported_pdu_info, char name_str[64])
+write_packet_data(wtap_dumper *wdh, wtap_rec *rec, int *err, gchar **err_info, char *file_buf, nstime_t packet_time, exported_pdu_info_t *exported_pdu_info, char name_str[64])
 {
 	char *curr_pos, *next_pos;
 	char proto_name_str[16];
@@ -683,14 +683,14 @@ write_packet_data(wtap_dumper *wdh, wtap_rec *rec, int *err, gchar **err_info, c
 	/* Construct the phdr */
 	memset(rec, 0, sizeof *rec);
 	rec->rec_type = REC_TYPE_PACKET;
-	if (start_time.secs == 0) {
+	if (packet_time.secs == 0) {
 		rec->presence_flags = 0; /* yes, we have no bananas^Wtime stamp */
 		rec->ts.secs = 0;
 		rec->ts.nsecs = 0;
 	} else {
 		rec->presence_flags = WTAP_HAS_TS;
-		rec->ts.secs = start_time.secs;
-		rec->ts.nsecs = start_time.nsecs;
+		rec->ts.secs = packet_time.secs;
+		rec->ts.nsecs = packet_time.nsecs;
 	}
 
 	rec->rec_header.packet_header.caplen = pkt_data_len + exp_pdu_tags_len;
@@ -810,7 +810,7 @@ nettrace_parse_address(char* curr_pos, char* next_pos, gboolean is_src_addr/*SRC
 }
 
 /*
- * Opens an .xml file with Trace data formated according to 3GPP TS 32.423 and converts it to
+ * Opens an .xml file with Trace data formatted according to 3GPP TS 32.423 and converts it to
  * an "Exported PDU type file with the entire xml file as the first "packet" appending the
  * raw messages as subsequent packages to be dissected by wireshark.
  */
@@ -819,7 +819,6 @@ create_temp_pcapng_file(wtap *wth, int *err, gchar **err_info, nettrace_3gpp_32_
 {
 	int import_file_fd;
 	wtap_dumper* wdh_exp_pdu;
-	int   exp_pdu_file_err;
 	wtap_open_return_val result = WTAP_OPEN_MINE;
 
 	/* pcapng defs */
@@ -832,12 +831,10 @@ create_temp_pcapng_file(wtap *wth, int *err, gchar **err_info, nettrace_3gpp_32_
 	gint64 file_size;
 	int packet_size;
 	char *packet_buf = NULL;
-	int wrt_err;
-	gchar *wrt_err_info = NULL;
 	wtap_rec rec;
-	nstime_t start_time;
+	nstime_t start_time, packet_time;
 	int scan_found;
-	unsigned second, ms;
+	unsigned int second, ms;
 	gboolean do_random = FALSE;
 	char *curr_pos, *next_msg_pos, *next_pos, *prev_pos;
 	int name_str_len;
@@ -907,7 +904,7 @@ create_temp_pcapng_file(wtap *wth, int *err, gchar **err_info, nettrace_3gpp_32_
 	};
 	wdh_exp_pdu = wtap_dump_fdopen(import_file_fd, WTAP_FILE_TYPE_SUBTYPE_PCAPNG,
 				       WTAP_UNCOMPRESSED, &params,
-				       &exp_pdu_file_err);
+				       err, err_info);
 	if (wdh_exp_pdu == NULL) {
 		result = WTAP_OPEN_ERROR;
 		goto end;
@@ -954,7 +951,7 @@ create_temp_pcapng_file(wtap *wth, int *err, gchar **err_info, nettrace_3gpp_32_
 	packet_buf[10] = 0;
 	packet_buf[11] = 0;
 
-	if (!wtap_read_bytes(wth->fh, packet_buf + 12, packet_size, &wrt_err, &wrt_err_info)){
+	if (!wtap_read_bytes(wth->fh, packet_buf + 12, packet_size, err, err_info)){
 		result = WTAP_OPEN_ERROR;
 		goto end;
 	}
@@ -991,8 +988,8 @@ create_temp_pcapng_file(wtap *wth, int *err, gchar **err_info, nettrace_3gpp_32_
 
 	curr_pos = nettrace_parse_begin_time(curr_pos, &rec);
 
-	start_time.secs = rec.ts.secs;
-	start_time.nsecs = rec.ts.nsecs;
+	start_time.secs = packet_time.secs = rec.ts.secs;
+	start_time.nsecs = packet_time.nsecs = rec.ts.nsecs;
 
 	/* set rest of the record hdr data */
 	rec.rec_type = REC_TYPE_PACKET;
@@ -1001,15 +998,7 @@ create_temp_pcapng_file(wtap *wth, int *err, gchar **err_info, nettrace_3gpp_32_
 	rec.rec_header.packet_header.len = packet_size + 12;
 
 	/* XXX: report errors! */
-	if (!wtap_dump(wdh_exp_pdu, &rec, packet_buf, &wrt_err, &wrt_err_info)) {
-		switch (wrt_err) {
-
-		case WTAP_ERR_UNWRITABLE_REC_DATA:
-			break;
-
-		default:
-			break;
-		}
+	if (!wtap_dump(wdh_exp_pdu, &rec, packet_buf, err, err_info)) {
 		result = WTAP_OPEN_ERROR;
 		goto end;
 	}
@@ -1021,7 +1010,7 @@ create_temp_pcapng_file(wtap *wth, int *err, gchar **err_info, nettrace_3gpp_32_
 		char *raw_msg_pos;
 		char* start_msg_tag_cont;
 
-		/* Clear for each itteration */
+		/* Clear for each iteration */
 		exported_pdu_info.precense_flags = 0;
 		exported_pdu_info.ptype = OLD_PT_NONE;
 
@@ -1067,14 +1056,20 @@ create_temp_pcapng_file(wtap *wth, int *err, gchar **err_info, nettrace_3gpp_32_
 		 */
 		ms = 0;
 		curr_pos = strstr(start_msg_tag_cont, "changeTime");
-		/* Check if we have the tag or if we pased the end of the current message */
+		/* Check if we have the tag or if we passed the end of the current message */
 		if ((curr_pos) && (curr_pos < next_msg_pos)) {
 			curr_pos = curr_pos + 12;
 			scan_found = sscanf(curr_pos, "%u.%u", &second, &ms);
 
 			if ((scan_found == 2) && (start_time.secs != 0)) {
-				start_time.secs = start_time.secs + second;
-				start_time.nsecs = start_time.nsecs + (ms * 1000000);
+				guint start_ms = start_time.nsecs / 1000000;
+				guint elapsed_ms = start_ms + ms;
+				if (elapsed_ms > 1000) {
+					elapsed_ms -= 1000;
+					second++;
+				}
+				packet_time.secs = start_time.secs + second;
+				packet_time.nsecs = start_time.nsecs + (elapsed_ms * 1000000);
 			}
 		}
 
@@ -1099,7 +1094,7 @@ create_temp_pcapng_file(wtap *wth, int *err, gchar **err_info, nettrace_3gpp_32_
 		*  It might contain an address
 		*/
 		curr_pos = strstr(start_msg_tag_cont, "<initiator");
-		/* Check if we have the tag or if we pased the end of the current message */
+		/* Check if we have the tag or if we passed the end of the current message */
 		if ((curr_pos) && (curr_pos < next_msg_pos)) {
 			curr_pos = curr_pos + 10;
 			next_pos = strstr(curr_pos, "</initiator>");
@@ -1115,7 +1110,7 @@ create_temp_pcapng_file(wtap *wth, int *err, gchar **err_info, nettrace_3gpp_32_
 		*  It might contain an address
 		*/
 		curr_pos = strstr(start_msg_tag_cont, "<target");
-		/* Check if we have the tag or if we pased the end of the current message */
+		/* Check if we have the tag or if we passed the end of the current message */
 		if ((curr_pos) && (curr_pos < next_msg_pos)) {
 			curr_pos = curr_pos + 7;
 			next_pos = strstr(curr_pos, "</target>");
@@ -1132,18 +1127,16 @@ create_temp_pcapng_file(wtap *wth, int *err, gchar **err_info, nettrace_3gpp_32_
 		curr_pos = raw_msg_pos;
 		curr_pos = curr_pos + 7;
 		/* Add the raw msg*/
-		temp_val = write_packet_data(wdh_exp_pdu, &rec, &wrt_err, &wrt_err_info, curr_pos, start_time, &exported_pdu_info, name_str);
+		temp_val = write_packet_data(wdh_exp_pdu, &rec, err, err_info, curr_pos, packet_time, &exported_pdu_info, name_str);
 		if (temp_val != WTAP_OPEN_MINE){
 			result = temp_val;
-			*err = wrt_err;
-			*err_info = g_strdup(wrt_err_info);
 			goto end;
 		}
 		curr_pos = next_msg_pos;
 	}
 
 	/* Close the written file*/
-	if (!wtap_dump_close(wdh_exp_pdu, err)){
+	if (!wtap_dump_close(wdh_exp_pdu, err, err_info)){
 		result = WTAP_OPEN_ERROR;
 		goto end;
 	}
@@ -1163,7 +1156,6 @@ create_temp_pcapng_file(wtap *wth, int *err, gchar **err_info, nettrace_3gpp_32_
 	}
 
 end:
-	g_free(wrt_err_info);
 	g_free(packet_buf);
 	wtap_block_array_free(shb_hdrs);
 	wtap_free_idb_info(idb_inf);
