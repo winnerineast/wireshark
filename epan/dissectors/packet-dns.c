@@ -248,7 +248,6 @@ static int hf_dns_csync_flags_soaminimum = -1;
 static int hf_dns_csync_type_bitmap = -1;
 static int hf_dns_svcb_priority = -1;
 static int hf_dns_svcb_target = -1;
-static int hf_dns_svcb_svcparams = -1;
 static int hf_dns_svcb_param_key = -1;
 static int hf_dns_svcb_param_length = -1;
 static int hf_dns_svcb_param_value = -1;
@@ -258,8 +257,9 @@ static int hf_dns_svcb_param_alpn_length = -1;
 static int hf_dns_svcb_param_alpn = -1;
 static int hf_dns_svcb_param_port = -1;
 static int hf_dns_svcb_param_ipv4hint_ip = -1;
-static int hf_dns_svcb_param_echoconfig = -1;
+static int hf_dns_svcb_param_echconfig = -1;
 static int hf_dns_svcb_param_ipv6hint_ip = -1;
+static int hf_dns_svcb_param_odohconfig = -1;
 static int hf_dns_openpgpkey = -1;
 static int hf_dns_spf_length = -1;
 static int hf_dns_spf = -1;
@@ -370,6 +370,8 @@ static int hf_dns_opt_cookie_server = -1;
 static int hf_dns_opt_edns_tcp_keepalive_timeout = -1;
 static int hf_dns_opt_padding = -1;
 static int hf_dns_opt_chain_fqdn = -1;
+static int hf_dns_opt_ext_error_info_code = -1;
+static int hf_dns_opt_ext_error_extra_text = -1;
 static int hf_dns_nsec3_algo = -1;
 static int hf_dns_nsec3_flags = -1;
 static int hf_dns_nsec3_flag_optout = -1;
@@ -691,6 +693,7 @@ typedef struct _dns_conv_info_t {
 #define O_EDNS_TCP_KA   11              /* edns-tcp-keepalive EDNS0 Option (RFC7828) */
 #define O_PADDING       12              /* EDNS(0) Padding Option (RFC7830) */
 #define O_CHAIN         13              /* draft-ietf-dnsop-edns-chain-query */
+#define O_EXT_ERROR     15              /* Extended DNS Errors (RFC8914) */
 
 #define MIN_DNAME_LEN    2              /* minimum domain name length */
 
@@ -1134,10 +1137,11 @@ static const value_string edns0_opt_code_vals[] = {
   {O_CLIENT_SUBNET_EXP, "Experimental - CSUBNET - Client subnet" },
   {O_CLIENT_SUBNET, "CSUBNET - Client subnet" },
   {O_EDNS_EXPIRE, "EDNS EXPIRE (RFC7314)"},
-  {O_COOKIE,     "COOKIE"},
+  {O_COOKIE,      "COOKIE"},
   {O_EDNS_TCP_KA, "EDNS TCP Keepalive"},
-  {O_PADDING, "PADDING"},
+  {O_PADDING,     "PADDING"},
   {O_CHAIN,       "CHAIN"},
+  {O_EXT_ERROR,   "Extended DNS Error"},
   {0,             NULL}
  };
 /* DNS-Based Authentication of Named Entities (DANE) Parameters
@@ -1235,19 +1239,25 @@ static const range_string dns_dso_type_rvals[] = {
 #define DNS_SVCB_KEY_NOALPN           2
 #define DNS_SVCB_KEY_PORT             3
 #define DNS_SVCB_KEY_IPV4HINT         4
-#define DNS_SVCB_KEY_ECHOCONFIG       5
+#define DNS_SVCB_KEY_ECHCONFIG        5
 #define DNS_SVCB_KEY_IPV6HINT         6
+#define DNS_SVCB_KEY_ODOHCONFIG   32769 /* draft-pauly-dprive-oblivious-doh-02 */
 #define DNS_SVCB_KEY_RESERVED     65535
 
+/**
+ * Service Binding (SVCB) Parameter Registry.
+ * https://tools.ietf.org/html/draft-ietf-dnsop-svcb-https-01#section-12.3.2
+ */
 static const value_string dns_svcb_param_key_vals[] = {
-  { DNS_SVCB_KEY_MANDATORY,     "Mandatory" },
-  { DNS_SVCB_KEY_ALPN,          "ALPN" },
-  { DNS_SVCB_KEY_NOALPN,        "No-default-ALPN" },
-  { DNS_SVCB_KEY_PORT,          "Port" },
-  { DNS_SVCB_KEY_IPV4HINT,      "IPv4 Hint" },
-  { DNS_SVCB_KEY_ECHOCONFIG,    "Echo Config" },
-  { DNS_SVCB_KEY_IPV6HINT,      "IPv6 Hint" },
-  { DNS_SVCB_KEY_RESERVED,      "Invalid" },
+  { DNS_SVCB_KEY_MANDATORY,     "mandatory" },
+  { DNS_SVCB_KEY_ALPN,          "alpn" },
+  { DNS_SVCB_KEY_NOALPN,        "no-default-alpn" },
+  { DNS_SVCB_KEY_PORT,          "port" },
+  { DNS_SVCB_KEY_IPV4HINT,      "ipv4hint" },
+  { DNS_SVCB_KEY_ECHCONFIG,     "echconfig" },
+  { DNS_SVCB_KEY_IPV6HINT,      "ipv6hint" },
+  { DNS_SVCB_KEY_ODOHCONFIG,    "odohconfig" },
+  { DNS_SVCB_KEY_RESERVED,      "key65535" },
   { 0,                          NULL }
 };
 
@@ -1256,6 +1266,37 @@ static int * const dns_csync_flags[] = {
     &hf_dns_csync_flags_soaminimum,
     NULL
 };
+
+static const range_string dns_ext_err_info_code[] = {
+  {     0,     0, "Other Error"        },
+  {     1,     1, "Unsupported DNSKEY Algorithm" },
+  {     2,     2, "Unsupported DS Digest Type"   },
+  {     3,     3, "Stale Answer"                 },
+  {     4,     4, "Forged Answer"                },
+  {     5,     5, "DNSSEC Indeterminate"         },
+  {     6,     6, "DNSSEC Bogus"                 },
+  {     7,     7, "Signature Expired"            },
+  {     8,     8, "Signature Not Yet Valid"      },
+  {     9,     9, "DNSKEY Missing"               },
+  {    10,    10, "RRSIGs Missing"               },
+  {    11,    11, "No Zone Key Bit Set"          },
+  {    12,    12, "NSEC Missing"                 },
+  {    13,    13, "Cached Error"                 },
+  {    14,    14, "Not Ready"                    },
+  {    15,    15, "Blocked"                      },
+  {    16,    16, "Censored"                     },
+  {    17,    17, "Filtered"                     },
+  {    18,    18, "Prohibited"                   },
+  {    19,    19, "Stale NXDomain Answer"        },
+  {    20,    20, "Not Authoritative"            },
+  {    21,    21, "Not Supported"                },
+  {    22,    22, "No Reachable Authority"       },
+  {    23,    23, "Network Error"                },
+  {    24,    24, "Invalid Data"                 },
+  {    25, 49151, "Unassigned"                   },
+  { 49152, 65535, "Reserved for Private Use"     },
+  {     0,     0, NULL                           } };
+
 
 /* This function counts how many '.' are in the string, plus 1, in order to count the number
  * of labels
@@ -1912,6 +1953,16 @@ compute_key_id(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, int offset, 
        break;
   }
   return TRUE;
+}
+
+/* Dissect a SvbParam where the presentation format of the value is base64. */
+static void
+dissect_dns_svcparam_base64(proto_tree *param_tree, proto_item *param_item, int hf_id, tvbuff_t *tvb, int offset, guint length)
+{
+  gchar *str = g_base64_encode((guint8 *)tvb_memdup(wmem_packet_scope(), tvb, offset, length), length);
+  proto_tree_add_bytes_format_value(param_tree, hf_id, tvb, offset, length, NULL, "%s", str);
+  proto_item_append_text(param_item, "=%s", str);
+  g_free(str);
 }
 
 
@@ -2963,6 +3014,21 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
           }
           break;
 
+          case O_EXT_ERROR:
+          {
+            if (optlen >= 2) {
+              proto_tree_add_item(rropt_tree, hf_dns_opt_ext_error_info_code, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
+              cur_offset += 2;
+              rropt_len  -= 2;
+              if (optlen > 2) {
+                proto_tree_add_item(rropt_tree, hf_dns_opt_ext_error_extra_text, tvb, cur_offset, optlen - 2, ENC_UTF_8|ENC_NA);
+                cur_offset += (optlen - 2);
+                rropt_len  -= (optlen - 2);
+              }
+            }
+          }
+          break;
+
           default:
           {
             cur_offset += optlen;
@@ -3387,15 +3453,14 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
     case T_SVCB: /* Service binding and parameter specification (64) */
     case T_HTTPS: /* Service binding and parameter specification (65) */
     {
-      guint32       priority = 0;
+      guint32       priority = 0, value;
       guint32       svc_param_key;
+      guint32       svc_param_offset;
       guint32       svc_param_length;
       guint32       svc_param_alpn_length;
       const gchar  *target;
       int           target_len;
       int           start_offset = cur_offset;
-      proto_item   *svcb_ti;
-      proto_tree   *svcb_tree;
       proto_item   *svcb_param_ti;
       proto_tree   *svcb_param_tree;
 
@@ -3409,11 +3474,8 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
       cur_offset += used_bytes;
 
       if (data_len > cur_offset - start_offset) {
-        svcb_ti = proto_tree_add_item(rr_tree, hf_dns_svcb_svcparams, tvb, cur_offset, data_len - (cur_offset - start_offset), ENC_NA);
-        svcb_tree = proto_item_add_subtree(svcb_ti, ett_dns_svcb);
-
         while (data_len > cur_offset - start_offset) {
-          svcb_param_ti = proto_tree_add_item(svcb_tree, hf_dns_svcb_param, tvb, cur_offset, -1, ENC_NA);
+          svcb_param_ti = proto_tree_add_item(rr_tree, hf_dns_svcb_param, tvb, cur_offset, -1, ENC_NA);
           svcb_param_tree = proto_item_add_subtree(svcb_param_ti, ett_dns_svcb);
 
           proto_tree_add_item_ret_uint(svcb_param_tree, hf_dns_svcb_param_key, tvb, cur_offset, 2, ENC_BIG_ENDIAN, &svc_param_key);
@@ -3422,54 +3484,62 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
           proto_tree_add_item_ret_uint(svcb_param_tree, hf_dns_svcb_param_length, tvb, cur_offset, 2, ENC_BIG_ENDIAN, &svc_param_length);
           cur_offset += 2;
 
-          proto_item_append_text(svcb_param_ti, ": %s", val_to_str(svc_param_key, dns_svcb_param_key_vals, "Unknown Type"));
+          proto_item_append_text(svcb_param_ti, ": %s", val_to_str(svc_param_key, dns_svcb_param_key_vals, "key%u"));
           proto_item_set_len(svcb_param_ti, svc_param_length + 4);
 
           switch(svc_param_key) {
             case DNS_SVCB_KEY_MANDATORY:
-              while (svc_param_length >= 2 && svc_param_length % 2 == 0) {
-                proto_tree_add_item(svcb_param_tree, hf_dns_svcb_param_mandatory_key, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
+              for (svc_param_offset = 0; svc_param_offset < svc_param_length; svc_param_offset += 2) {
+                guint32 key;
+                proto_tree_add_item_ret_uint(svcb_param_tree, hf_dns_svcb_param_mandatory_key, tvb, cur_offset, 2, ENC_BIG_ENDIAN, &key);
+                proto_item_append_text(svcb_param_ti, "%c%s", (svc_param_offset == 0 ? '=' : ','), val_to_str(key, dns_svcb_param_key_vals, "key%u"));
                 cur_offset += 2;
-                svc_param_length -= 2;
               }
               break;
             case DNS_SVCB_KEY_ALPN:
-              while (svc_param_length >= 1) {
+              for (svc_param_offset = 0; svc_param_offset < svc_param_length; ) {
+                const guint8 *alpn;
                 proto_tree_add_item_ret_uint(svcb_param_tree, hf_dns_svcb_param_alpn_length, tvb, cur_offset, 1, ENC_BIG_ENDIAN, &svc_param_alpn_length);
                 cur_offset += 1;
-                svc_param_length -= 1;
-                proto_tree_add_item(svcb_param_tree, hf_dns_svcb_param_alpn, tvb, cur_offset, svc_param_alpn_length, ENC_ASCII|ENC_NA);
+                proto_tree_add_item_ret_string(svcb_param_tree, hf_dns_svcb_param_alpn, tvb, cur_offset, svc_param_alpn_length, ENC_ASCII|ENC_NA, wmem_packet_scope(), &alpn);
                 cur_offset += svc_param_alpn_length;
-                svc_param_length -= svc_param_alpn_length;
+                proto_item_append_text(svcb_param_ti, "%c%s", (svc_param_offset == 0 ? '=' : ','), alpn);
+                svc_param_offset += 1 + svc_param_alpn_length;
               }
               break;
             case DNS_SVCB_KEY_NOALPN:
               break;
             case DNS_SVCB_KEY_PORT:
-              proto_tree_add_item(svcb_param_tree, hf_dns_svcb_param_port, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
+              proto_tree_add_item_ret_uint(svcb_param_tree, hf_dns_svcb_param_port, tvb, cur_offset, 2, ENC_BIG_ENDIAN, &value);
+              proto_item_append_text(svcb_param_ti, "=%u", value);
               cur_offset += 2;
               break;
             case DNS_SVCB_KEY_IPV4HINT:
-              while (svc_param_length >= 4 && svc_param_length % 4 == 0) {
+              for (svc_param_offset = 0; svc_param_offset < svc_param_length; svc_param_offset += 4) {
                 proto_tree_add_item(svcb_param_tree, hf_dns_svcb_param_ipv4hint_ip, tvb, cur_offset, 4, ENC_NA);
+                proto_item_append_text(svcb_param_ti, "%c%s", (svc_param_offset == 0 ? '=' : ','), tvb_ip_to_str(tvb, cur_offset));
                 cur_offset += 4;
-                svc_param_length -= 4;
               }
               break;
-            case DNS_SVCB_KEY_ECHOCONFIG:
-              proto_tree_add_item(svcb_param_tree, hf_dns_svcb_param_echoconfig, tvb, cur_offset, svc_param_length, ENC_NA);
+            case DNS_SVCB_KEY_ECHCONFIG:
+              dissect_dns_svcparam_base64(svcb_param_tree, svcb_param_ti, hf_dns_svcb_param_echconfig, tvb, cur_offset, svc_param_length);
               cur_offset += svc_param_length;
               break;
             case DNS_SVCB_KEY_IPV6HINT:
-              while (svc_param_length >= 16 && svc_param_length % 16 == 0) {
+              for (svc_param_offset = 0; svc_param_offset < svc_param_length; svc_param_offset += 16) {
                 proto_tree_add_item(svcb_param_tree, hf_dns_svcb_param_ipv6hint_ip, tvb, cur_offset, 16, ENC_NA);
+                proto_item_append_text(svcb_param_ti, "%c%s", (svc_param_offset == 0 ? '=' : ','), tvb_ip6_to_str(tvb, cur_offset));
                 cur_offset += 16;
-                svc_param_length -= 16;
               }
+              break;
+            case DNS_SVCB_KEY_ODOHCONFIG:
+              dissect_dns_svcparam_base64(svcb_param_tree, svcb_param_ti, hf_dns_svcb_param_odohconfig, tvb, cur_offset, svc_param_length);
+              cur_offset += svc_param_length;
               break;
             default:
               if (svc_param_length > 0) {
                 proto_tree_add_item(svcb_param_tree, hf_dns_svcb_param_value, tvb, cur_offset, svc_param_length, ENC_NA);
+                proto_item_append_text(svcb_param_ti, "=%s", tvb_format_text(tvb, cur_offset, svc_param_length));
                 cur_offset += svc_param_length;
               }
               break;
@@ -4432,6 +4502,65 @@ dissect_dns(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
   }
 }
 
+static gboolean
+dissect_dns_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+{
+  /*
+   * Try hard to match DNS messages while avoiding false positives. Look for:
+   *
+   * - Non-empty DNS messages (more than just a header).
+   * - Flags: QR bit (0-Query, 1-Response); Opcode bits: Standard Query (0000)
+   * - Questions: 1 (for queries), or 0 or 1 (for responses like AXFR)
+   * - Answer RRs: 0 (for queries) or a low number (for responses)
+   * - Authority RRs: 0 (for queries) or a low number (for responses)
+   * - Additional RRs: assume a low number.
+   *
+   * Not implemented, but perhaps we could check for:
+   * - Require that the question and answer count cannot both be zero. Perhaps
+   *   some protocols have large sequences of zero bytes, this check reduces the
+   *   probability of matching such payloads.
+   * - Assume a valid QNAME in the question section. (Is there sufficient data
+   *   for a valid name?)
+   * - Assume a common QTYPE and QCLASS (IN/CH).
+   * - Potentially implement heuristics for TCP by checking the length prefix?
+   */
+  int               offset = 0;
+  guint16           flags, quest, ans, auth, add;
+  /*
+   * max_ans=10 was sufficient for recognizing the majority of DNS messages from
+   * the rrdns test suite, but four "huge record" test cases have 100 answers.
+   * The max_auth and max_add numbers were picked arbitrarily.
+   */
+  const guint16     max_ans = 100;
+  const guint16     max_auth = 10;
+  const guint16     max_add = 10;
+
+  if (tvb_reported_length(tvb) <= DNS_HDRLEN)
+    return FALSE;
+
+  flags = tvb_get_ntohs(tvb, offset + DNS_FLAGS);
+  if ((flags & F_OPCODE) != 0)
+    return FALSE;
+
+  quest = tvb_get_ntohs(tvb, offset + DNS_QUEST);
+  ans = tvb_get_ntohs(tvb, offset + DNS_ANS);
+  auth = tvb_get_ntohs(tvb, offset + DNS_AUTH);
+  if (!(flags & F_RESPONSE)) {
+    if (quest != 1 || ans != 0 || auth != 0)
+      return FALSE;
+  } else {
+    if (quest > 1 || ans > max_ans || auth > max_auth)
+      return FALSE;
+  }
+
+  add = tvb_get_ntohs(tvb, offset + DNS_ADD);
+  if (add > max_add)
+    return FALSE;
+
+  dissect_dns(tvb, pinfo, tree, NULL);
+  return TRUE;
+}
+
 static void dns_stats_tree_init(stats_tree* st)
 {
   st_node_packets = stats_tree_create_node(st, st_str_packets, 0, STAT_DT_INT, TRUE);
@@ -4546,6 +4675,7 @@ proto_reg_handoff_dns(void)
   dissector_add_uint_range_with_preference("tcp.port", DEFAULT_DNS_TCP_PORT_RANGE, dns_handle);
   dissector_add_uint_range_with_preference("udp.port", DEFAULT_DNS_PORT_RANGE, dns_handle);
   dissector_add_string("media_type", "application/dns-message", dns_handle); /* since draft-ietf-doh-dns-over-https-07 */
+  heur_dissector_add("udp", dissect_dns_heur, "DNS over UDP", "dns_udp", proto_dns, HEURISTIC_ENABLE);
 }
 
 void
@@ -5017,11 +5147,6 @@ proto_register_dns(void)
         FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
-    { &hf_dns_svcb_svcparams,
-      { "SvcParams", "dns.svcb.svcparams",
-        FT_NONE, BASE_NONE, NULL, 0x0,
-        NULL, HFILL }},
-
     { &hf_dns_svcb_param_key,
       { "SvcParamKey", "dns.svcb.svcparam.key",
         FT_UINT16, BASE_DEC, VALS(dns_svcb_param_key_vals), 0x0,
@@ -5045,7 +5170,7 @@ proto_register_dns(void)
     { &hf_dns_svcb_param_mandatory_key,
       { "Mandatory key", "dns.svcb.svcparam.mandatory.key",
         FT_UINT16, BASE_DEC, VALS(dns_svcb_param_key_vals), 0x0,
-        NULL, HFILL }},
+        "Mandatory keys in this RR", HFILL }},
 
     { &hf_dns_svcb_param_alpn_length,
       { "ALPN length", "dns.svcb.svcparam.alpn.length",
@@ -5055,27 +5180,32 @@ proto_register_dns(void)
     { &hf_dns_svcb_param_alpn,
       { "ALPN", "dns.svcb.svcparam.alpn",
         FT_STRING, BASE_NONE, NULL, 0x0,
-        NULL, HFILL }},
+        "Additional supported protocols", HFILL }},
 
     { &hf_dns_svcb_param_port,
       { "Port", "dns.svcb.svcparam.port",
         FT_UINT16, BASE_DEC, NULL, 0x0,
-        NULL, HFILL }},
+        "Port for alternative endpoint", HFILL }},
 
     { &hf_dns_svcb_param_ipv4hint_ip,
       { "IP", "dns.svcb.svcparam.ipv4hint.ip",
         FT_IPv4, BASE_NONE, NULL, 0x0,
-        NULL, HFILL }},
+        "IPv4 address hints", HFILL }},
 
-    { &hf_dns_svcb_param_echoconfig,
-      { "EchoConfig", "dns.svcb.svcparam.echoconfig",
+    { &hf_dns_svcb_param_echconfig,
+      { "ECHConfig", "dns.svcb.svcparam.echconfig",
         FT_BYTES, BASE_NONE, NULL, 0x0,
-        NULL, HFILL }},
+        "Encrypted ClientHello (ECH) infos", HFILL }},
 
     { &hf_dns_svcb_param_ipv6hint_ip,
       { "IP", "dns.svcb.svcparam.ipv6hint.ip",
         FT_IPv6, BASE_NONE, NULL, 0x0,
-        NULL, HFILL }},
+        "IPv6 address hints", HFILL }},
+
+    { &hf_dns_svcb_param_odohconfig,
+      { "ODoHConfig", "dns.svcb.svcparam.odohconfig",
+        FT_BYTES, BASE_NONE, NULL, 0x0,
+        "Oblivious DoH keys", HFILL }},
 
     { &hf_dns_spf_length,
       { "SPF Length", "dns.spf.length",
@@ -5626,6 +5756,16 @@ proto_register_dns(void)
       { "Closest Trust Point", "dns.opt.chain.fqdn",
         FT_STRING, BASE_NONE, NULL, 0x0,
         "A variable length Fully Qualified Domain Name (FQDN) in DNS wire format of the requested start point of the chain", HFILL }},
+
+    { &hf_dns_opt_ext_error_info_code,
+      { "Info Code", "dns.opt.ext_error.info_code",
+        FT_UINT16, BASE_DEC | BASE_RANGE_STRING, RVALS(dns_ext_err_info_code), 0x0,
+        NULL, HFILL }},
+
+    { &hf_dns_opt_ext_error_extra_text,
+      { "Extra Text", "dns.opt.ext_error.extra_text",
+        FT_STRING, STR_UNICODE, NULL, 0x0,
+        NULL, HFILL }},
 
     { &hf_dns_count_questions,
       { "Questions", "dns.count.queries",

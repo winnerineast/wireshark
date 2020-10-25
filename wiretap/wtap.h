@@ -1576,6 +1576,7 @@ typedef struct wtap_dump_params {
     const GArray *dsbs_growing;             /**< DSBs that will be written while writing packets, or NULL.
                                                  This array may grow since the dumper was opened and will subsequently
                                                  be written before newer packets are written in wtap_dump. */
+    gboolean    dont_copy_idbs;             /**< XXX - don't copy IDBs; this should eventually always be the case. */
 } wtap_dump_params;
 
 /* Zero-initializer for wtap_dump_params. */
@@ -1972,6 +1973,18 @@ WS_DLL_PUBLIC
 wtapng_iface_descriptions_t *wtap_file_get_idb_info(wtap *wth);
 
 /**
+ * @brief Gets next interface description.
+ *
+ * @details This returns the first unfetched wtap_block_t from the set
+ * of interface descriptions.  Returns NULL if there are no more
+ * unfetched interface descriptions; a subsequent call after
+ * wtap_read() returns, either with a new record or an EOF, may return
+ * another interface description.
+ */
+WS_DLL_PUBLIC
+wtap_block_t wtap_get_next_interface_description(wtap *wth);
+
+/**
  * @brief Free's a interface description block and all of its members.
  *
  * @details This free's all of the interface descriptions inside the passed-in
@@ -2091,6 +2104,23 @@ WS_DLL_PUBLIC
 void wtap_dump_params_init(wtap_dump_params *params, wtap *wth);
 
 /**
+ * Initialize the per-file information based on an existing file, but
+ * don't copy over the interface information. Its contents must be freed
+ * according to the requirements of wtap_dump_params.
+ * If wth does not remain valid for the duration of the session, dsbs_growing
+ * MUST be cleared after this function.
+ *
+ * XXX - this should eventually become wtap_dump_params_init(), with all
+ * programs writing capture files copying IDBs over by hand, so that they
+ * handle IDBs in the middle of the file.
+ *
+ * @param params The parameters for wtap_dump_* to initialize.
+ * @param wth The wiretap session.
+ */
+WS_DLL_PUBLIC
+void wtap_dump_params_init_no_idbs(wtap_dump_params *params, wtap *wth);
+
+/**
  * Remove any decryption secret information from the per-file information;
  * used if we're stripping decryption secrets as we write the file.
  *
@@ -2179,10 +2209,15 @@ wtap_dumper* wtap_dump_open_stdout(int file_type_subtype,
     int *err, gchar **err_info);
 
 WS_DLL_PUBLIC
+gboolean wtap_dump_add_idb(wtap_dumper *wdh, wtap_block_t idb, int *err,
+     gchar **err_info);
+WS_DLL_PUBLIC
 gboolean wtap_dump(wtap_dumper *, const wtap_rec *, const guint8 *,
      int *err, gchar **err_info);
 WS_DLL_PUBLIC
 gboolean wtap_dump_flush(wtap_dumper *, int *);
+WS_DLL_PUBLIC
+int wtap_dump_file_type_subtype(wtap_dumper *wdh);
 WS_DLL_PUBLIC
 gint64 wtap_get_bytes_dumped(wtap_dumper *);
 WS_DLL_PUBLIC
@@ -2219,6 +2254,13 @@ gboolean wtap_dump_can_write(const GArray *file_encaps, guint32 required_comment
 WS_DLL_PUBLIC
 GArray *wtap_get_savable_file_types_subtypes(int file_type,
     const GArray *file_encaps, guint32 required_comment_types);
+
+/**
+ * Return TRUE if files of this file type/subtype use interface IDs
+ * to associate records with an interface.
+ */
+WS_DLL_PUBLIC
+gboolean wtap_uses_interface_ids(int file_type);
 
 /*** various string converter functions ***/
 WS_DLL_PUBLIC

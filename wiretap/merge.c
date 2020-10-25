@@ -908,7 +908,7 @@ merge_process_packets(wtap_dumper *pdh, const int file_type,
             break;
         }
 
-        if (file_type == WTAP_FILE_TYPE_SUBTYPE_PCAPNG) {
+        if (wtap_uses_interface_ids(file_type)) {
             /*
              * XXX - We should do this only for record types
              * that pertain to a particular interface; for
@@ -1038,7 +1038,7 @@ merge_files_common(const gchar* out_filename, /* normal output mode */
     wtap_dump_params params = WTAP_DUMP_PARAMS_INIT;
     params.encap = frame_type;
     params.snaplen = snaplen;
-    if (file_type == WTAP_FILE_TYPE_SUBTYPE_PCAPNG) {
+    if (wtap_uses_interface_ids(file_type)) {
         shb_hdrs = create_shb_header(in_files, in_file_count, app_name);
         merge_debug("merge_files: SHB created");
 
