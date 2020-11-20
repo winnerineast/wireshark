@@ -2450,6 +2450,7 @@ pcapng_read_systemd_journal_export_block(wtap *wth, FILE_T fh, pcapng_block_head
     guint32 entry_length;
     guint32 block_total_length;
     guint64 rt_ts;
+    gboolean have_ts = FALSE;
 
     if (bh->block_total_length < MIN_SYSTEMD_JOURNAL_EXPORT_BLOCK_SIZE) {
         *err = WTAP_ERR_BAD_FILE;
@@ -2498,35 +2499,27 @@ pcapng_read_systemd_journal_export_block(wtap *wth, FILE_T fh, pcapng_block_head
     char *ts_pos = strstr(buf_ptr, SDJ__REALTIME_TIMESTAMP);
 
     if (!ts_pos) {
-        *err = WTAP_ERR_BAD_FILE;
-        *err_info = g_strdup_printf("%s: no timestamp", G_STRFUNC);
-        return FALSE;
+        pcapng_debug("%s: no timestamp", G_STRFUNC);
+    } else if (ts_pos+rt_ts_len >= (char *) buf_ptr+entry_length) {
+        pcapng_debug("%s: timestamp past end of buffer", G_STRFUNC);
+    } else {
+        const char *ts_end;
+        have_ts = ws_strtou64(ts_pos+rt_ts_len, &ts_end, &rt_ts);
+
+        if (!have_ts) {
+            pcapng_debug("%s: invalid timestamp", G_STRFUNC);
+        }
     }
 
-    if (ts_pos+rt_ts_len >= (char *) buf_ptr+entry_length) {
-        *err = WTAP_ERR_BAD_FILE;
-        *err_info = g_strdup_printf("%s: timestamp past end of buffer", G_STRFUNC);
-        return FALSE;
+    wblock->rec->rec_type = REC_TYPE_SYSTEMD_JOURNAL;
+    wblock->rec->rec_header.systemd_journal_header.record_len = entry_length;
+    wblock->rec->presence_flags = WTAP_HAS_CAP_LEN;
+    if (have_ts) {
+        wblock->rec->presence_flags |= WTAP_HAS_TS;
+        wblock->rec->tsprec = WTAP_TSPREC_USEC;
+        wblock->rec->ts.secs = (time_t) (rt_ts / 1000000);
+        wblock->rec->ts.nsecs = (rt_ts % 1000000) * 1000;
     }
-
-    errno = 0;
-    const char *ts_end;
-    gboolean ok = ws_strtou64(ts_pos+rt_ts_len, &ts_end, &rt_ts);
-
-    if (!ok) {
-        *err = WTAP_ERR_BAD_FILE;
-        *err_info = g_strdup_printf("%s: invalid timestamp", G_STRFUNC);
-        return FALSE;
-    }
-
-    wblock->rec->rec_type = REC_TYPE_FT_SPECIFIC_EVENT;
-    wblock->rec->rec_header.ft_specific_header.record_type = BLOCK_TYPE_SYSTEMD_JOURNAL;
-    wblock->rec->rec_header.ft_specific_header.record_len = entry_length;
-    wblock->rec->presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
-    wblock->rec->tsprec = WTAP_TSPREC_USEC;
-
-    wblock->rec->ts.secs = (time_t) (rt_ts / 1000000);
-    wblock->rec->ts.nsecs = (rt_ts % 1000000) * 1000;
 
     /*
      * We return these to the caller in pcapng_read().
@@ -3863,23 +3856,23 @@ pcapng_write_systemd_journal_export_block(wtap_dumper *wdh, const wtap_rec *rec,
     guint32 pad_len;
 
     /* Don't write anything we're not willing to read. */
-    if (rec->rec_header.ft_specific_header.record_len > WTAP_MAX_PACKET_SIZE_STANDARD) {
+    if (rec->rec_header.systemd_journal_header.record_len > WTAP_MAX_PACKET_SIZE_STANDARD) {
         *err = WTAP_ERR_PACKET_TOO_LARGE;
         return FALSE;
     }
 
-    if (rec->rec_header.ft_specific_header.record_len % 4) {
-        pad_len = 4 - (rec->rec_header.ft_specific_header.record_len % 4);
+    if (rec->rec_header.systemd_journal_header.record_len % 4) {
+        pad_len = 4 - (rec->rec_header.systemd_journal_header.record_len % 4);
     } else {
         pad_len = 0;
     }
 
     /* write systemd journal export block header */
     bh.block_type = BLOCK_TYPE_SYSTEMD_JOURNAL;
-    bh.block_total_length = (guint32)sizeof(bh) + rec->rec_header.ft_specific_header.record_len + pad_len + 4;
+    bh.block_total_length = (guint32)sizeof(bh) + rec->rec_header.systemd_journal_header.record_len + pad_len + 4;
 
     pcapng_debug("%s: writing %u bytes, %u padded", G_STRFUNC,
-                 rec->rec_header.ft_specific_header.record_len,
+                 rec->rec_header.systemd_journal_header.record_len,
                  bh.block_total_length);
 
     if (!wtap_dump_file_write(wdh, &bh, sizeof bh, err))
@@ -3887,9 +3880,9 @@ pcapng_write_systemd_journal_export_block(wtap_dumper *wdh, const wtap_rec *rec,
     wdh->bytes_dumped += sizeof bh;
 
     /* write entry data */
-    if (!wtap_dump_file_write(wdh, pd, rec->rec_header.ft_specific_header.record_len, err))
+    if (!wtap_dump_file_write(wdh, pd, rec->rec_header.systemd_journal_header.record_len, err))
         return FALSE;
-    wdh->bytes_dumped += rec->rec_header.ft_specific_header.record_len;
+    wdh->bytes_dumped += rec->rec_header.systemd_journal_header.record_len;
 
     /* write padding (if any) */
     if (pad_len != 0) {
@@ -4824,12 +4817,6 @@ static gboolean pcapng_dump(wtap_dumper *wdh,
 
         case REC_TYPE_FT_SPECIFIC_EVENT:
         case REC_TYPE_FT_SPECIFIC_REPORT:
-            if (rec->rec_header.ft_specific_header.record_type == WTAP_FILE_TYPE_SUBTYPE_SYSTEMD_JOURNAL) {
-                if (!pcapng_write_systemd_journal_export_block(wdh, rec, pd, err)) {
-                    return FALSE;
-                }
-                return TRUE;
-            }
 #ifdef HAVE_PLUGINS
             /*
              * Do we have a handler for this block type?
@@ -4851,6 +4838,12 @@ static gboolean pcapng_dump(wtap_dumper *wdh,
 
         case REC_TYPE_SYSCALL:
             if (!pcapng_write_sysdig_event_block(wdh, rec, pd, err)) {
+                return FALSE;
+            }
+            break;
+
+        case REC_TYPE_SYSTEMD_JOURNAL:
+            if (!pcapng_write_systemd_journal_export_block(wdh, rec, pd, err)) {
                 return FALSE;
             }
             break;

@@ -857,20 +857,30 @@ parse_enterprises_line (char *line)
 {
     char *tok, *dec_str, *org_str;
     guint32 dec;
+    gboolean had_comment = FALSE;
 
-    if ((tok = strchr(line, '#')))
+    /* Stop the line at any comment found */
+    if ((tok = strchr(line, '#'))) {
         *tok = '\0';
+        had_comment = TRUE;
+    }
+    /* Get enterprise number */
     dec_str = strtok(line, " \t");
     if (!dec_str)
         return;
+    /* Get enterprise name */
     org_str = strtok(NULL, ""); /* everything else */
-    if (org_str)
-        org_str = g_strstrip(org_str);
+    if (org_str && had_comment) {
+        /* Only need to strip after (between name and where comment was) */
+        org_str = g_strchomp(org_str);
+    }
     if (!org_str)
         return;
+
+    /* Add entry using number as key */
     if (!ws_strtou32(dec_str, NULL, &dec))
         return;
-    g_hash_table_replace(enterprises_hashtable, GUINT_TO_POINTER(dec), g_strdup(org_str));
+    g_hash_table_insert(enterprises_hashtable, GUINT_TO_POINTER(dec), g_strdup(org_str));
 }
 
 
@@ -904,7 +914,12 @@ initialize_enterprises(void)
     parse_enterprises_file(g_enterprises_path);
 
     if (g_penterprises_path == NULL) {
-        g_penterprises_path = get_persconffile_path(ENAME_ENTERPRISES, FALSE);
+        /* Check profile directory before personal configuration */
+        g_penterprises_path = get_persconffile_path(ENAME_ENTERPRISES, TRUE);
+        if (!file_exists(g_penterprises_path)) {
+            g_free(g_penterprises_path);
+            g_penterprises_path = get_persconffile_path(ENAME_ENTERPRISES, FALSE);
+        }
     }
     parse_enterprises_file(g_penterprises_path);
 }
@@ -1205,7 +1220,8 @@ host_lookup6(const ws_in6_addr *addr)
  */
 
 /*
- * Converts Ethernet addresses of the form aa:bb:cc or aa:bb:cc:dd:ee:ff/28. The
+ * Converts Ethernet addresses of the form aa:bb:cc or aa:bb:cc:dd:ee:ff/28.
+ * '-' is also supported as a separator. The
  * octets must be exactly two hexadecimal characters and the mask must be either
  * 28 or 36. Pre-condition: cp MUST be at least 21 bytes.
  */
@@ -1235,43 +1251,48 @@ parse_ether_address_fast(const guchar *cp, ether_t *eth, unsigned int *mask,
     };
     const guint8 *str_to_nibble_usg = (const guint8 *)str_to_nibble;
 
-    if (cp[2] != ':' || cp[5] != ':') {
+    guchar sep = cp[2];
+    if ((sep != ':' && sep != '-') || cp[5] != sep) {
         /* Unexpected separators. */
         return FALSE;
     }
 
-    guint8 num0 = (str_to_nibble_usg[cp[0]] << 4) | str_to_nibble_usg[cp[1]];
-    guint8 num1 = (str_to_nibble_usg[cp[3]] << 4) | str_to_nibble_usg[cp[4]];
-    guint8 num2 = (str_to_nibble_usg[cp[6]] << 4) | str_to_nibble_usg[cp[7]];
-    if (((num0 | num1 | num2) & 0x80)) {
+    /* N.B. store octet values in an int to detect invalid (-1) entries */
+    int num0 = (str_to_nibble_usg[cp[0]] << 4) | (gint8)str_to_nibble_usg[cp[1]];
+    int num1 = (str_to_nibble_usg[cp[3]] << 4) | (gint8)str_to_nibble_usg[cp[4]];
+    int num2 = (str_to_nibble_usg[cp[6]] << 4) | (gint8)str_to_nibble_usg[cp[7]];
+
+    if ((num0 | num1 | num2) & 0x100) {
         /* Not hexadecimal numbers. */
         return FALSE;
     }
 
-    eth->addr[0] = num0;
-    eth->addr[1] = num1;
-    eth->addr[2] = num2;
+    eth->addr[0] = (guint8)num0;
+    eth->addr[1] = (guint8)num1;
+    eth->addr[2] = (guint8)num2;
 
     if (cp[8] == '\0' && accept_mask) {
         /* Indicate that this is a manufacturer ID (0 is not allowed as a mask). */
         *mask = 0;
         return TRUE;
-    } else if (cp[8] != ':' || !accept_mask) {
+    } else if (cp[8] != sep || !accept_mask) {
         /* Format not handled by this fast path. */
         return FALSE;
     }
 
-    guint8 num3 = (str_to_nibble_usg[cp[9]] << 4) | str_to_nibble_usg[cp[10]];
-    guint8 num4 = (str_to_nibble_usg[cp[12]] << 4) | str_to_nibble_usg[cp[13]];
-    guint8 num5 = (str_to_nibble_usg[cp[15]] << 4) | str_to_nibble_usg[cp[16]];
-    if (((num3 | num4 | num5) & 0x80) || cp[11] != ':' || cp[14] != ':') {
+    /* N.B. store octet values in an int to detect invalid (-1) entries */
+    int num3 = (str_to_nibble_usg[cp[9]]  << 4) | (gint8)str_to_nibble_usg[cp[10]];
+    int num4 = (str_to_nibble_usg[cp[12]] << 4) | (gint8)str_to_nibble_usg[cp[13]];
+    int num5 = (str_to_nibble_usg[cp[15]] << 4) | (gint8)str_to_nibble_usg[cp[16]];
+
+    if (((num3 | num4 | num5) & 0x100) || cp[11] != sep || cp[14] != sep)  {
         /* Not hexadecimal numbers or invalid separators. */
         return FALSE;
     }
 
-    eth->addr[3] = num3;
-    eth->addr[4] = num4;
-    eth->addr[5] = num5;
+    eth->addr[3] = (guint8)num3;
+    eth->addr[4] = (guint8)num4;
+    eth->addr[5] = (guint8)num5;
     if (cp[17] == '\0') {
         /* We got 6 bytes, so this is a MAC address (48 is not allowed as a mask). */
         *mask = 48;
@@ -1698,8 +1719,14 @@ initialize_ethers(void)
     /* Set g_pethers_path here, but don't actually do anything
      * with it. It's used in get_ethbyaddr().
      */
-    if (g_pethers_path == NULL)
-        g_pethers_path = get_persconffile_path(ENAME_ETHERS, FALSE);
+    if (g_pethers_path == NULL) {
+        /* Check profile directory before personal configuration */
+        g_pethers_path = get_persconffile_path(ENAME_ETHERS, TRUE);
+        if (!file_exists(g_pethers_path)) {
+            g_free(g_pethers_path);
+            g_pethers_path = get_persconffile_path(ENAME_ETHERS, FALSE);
+        }
+    }
 
     /* Compute the pathname of the manuf file */
     if (g_manuf_path == NULL)
@@ -2041,8 +2068,14 @@ initialize_ipxnets(void)
     /* Set g_pipxnets_path here, but don't actually do anything
      * with it. It's used in get_ipxnetbyaddr().
      */
-    if (g_pipxnets_path == NULL)
-        g_pipxnets_path = get_persconffile_path(ENAME_IPXNETS, FALSE);
+    if (g_pipxnets_path == NULL) {
+        /* Check profile directory before personal configuration */
+        g_pipxnets_path = get_persconffile_path(ENAME_IPXNETS, TRUE);
+        if (!file_exists(g_pipxnets_path)) {
+            g_free(g_pipxnets_path);
+            g_pipxnets_path = get_persconffile_path(ENAME_IPXNETS, FALSE);
+        }
+    }
 
 } /* initialize_ipxnets */
 
@@ -3164,6 +3197,12 @@ void host_name_lookup_reset(void)
     host_name_lookup_init();
     vlan_name_lookup_cleanup();
     initialize_vlans();
+    ethers_cleanup();
+    initialize_ethers();
+    ipx_name_lookup_cleanup();
+    initialize_ipxnets();
+    enterprises_cleanup();
+    initialize_enterprises();
 }
 
 gchar *

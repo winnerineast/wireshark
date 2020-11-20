@@ -120,7 +120,7 @@ static const gchar* st_str_response_nadditionals = "no. of additionals";
 static const gchar* st_str_service_stats = "Service Stats";
 static const gchar* st_str_service_unsolicited = "no. of unsolicited responses";
 static const gchar* st_str_service_retransmission = "no. of retransmissions";
-static const gchar* st_str_service_rrt = "request-response time (secs)";
+static const gchar* st_str_service_rrt = "request-response time (msec)";
 
 static int st_node_packets = -1;
 static int st_node_packet_qr = -1;
@@ -4644,7 +4644,7 @@ static tap_packet_status dns_stats_tree_packet(stats_tree* st, packet_info* pinf
           if (pi->retransmission)
             tick_stat_node(st, st_str_service_retransmission, 0, FALSE);
           else
-            avg_stat_node_add_value_float(st, st_str_service_rrt, 0, FALSE, (gfloat)(pi->rrt.secs + pi->rrt.nsecs/1000000000.0));
+            avg_stat_node_add_value_float(st, st_str_service_rrt, 0, FALSE, (gfloat)(pi->rrt.secs*1000. + pi->rrt.nsecs/1000000.0));
         }
     }
   }
@@ -4944,7 +4944,7 @@ proto_register_dns(void)
 
     { &hf_dns_rr_len,
       { "Data length", "dns.resp.len",
-        FT_UINT32, BASE_DEC, NULL, 0x0,
+        FT_UINT16, BASE_DEC, NULL, 0x0,
         "Response Length", HFILL }},
 
     { &hf_dns_a,
@@ -5424,7 +5424,7 @@ proto_register_dns(void)
 
     { &hf_dns_px_preference,
       { "Preference", "dns.px.preference",
-        FT_UINT8, BASE_DEC, NULL, 0x0,
+        FT_UINT16, BASE_DEC, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_dns_px_map822,

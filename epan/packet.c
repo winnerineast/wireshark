@@ -501,6 +501,10 @@ dissect_record(epan_dissect_t *edt, int file_type_subtype,
 		record_type = "System Call";
 		break;
 
+	case REC_TYPE_SYSTEMD_JOURNAL:
+		record_type = "Systemd Journal Entry";
+		break;
+
 	default:
 		/*
 		 * XXX - if we add record types that shouldn't be
@@ -542,6 +546,10 @@ dissect_record(epan_dissect_t *edt, int file_type_subtype,
 		break;
 
 	case REC_TYPE_SYSCALL:
+		edt->pi.pseudo_header = NULL;
+		break;
+
+	case REC_TYPE_SYSTEMD_JOURNAL:
 		edt->pi.pseudo_header = NULL;
 		break;
 	}
@@ -2609,7 +2617,7 @@ check_valid_heur_name_or_fail(const char *heur_name)
 	}
 
 	if (found_invalid) {
-		g_error("Hueristic Protocol internal name \"%s\" has one or more invalid characters."
+		g_error("Heuristic Protocol internal name \"%s\" has one or more invalid characters."
 			" Allowed are lowercase, digits, '-', '_' and non-repeating '.'."
 			" This might be caused by an inappropriate plugin or a development error.", heur_name);
 	}

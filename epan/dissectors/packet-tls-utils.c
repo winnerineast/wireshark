@@ -1183,7 +1183,7 @@ const value_string tls_hello_extension_types[] = {
     { SSL_HND_HELLO_EXT_GREASE_DADA, "Reserved (GREASE)" }, /* RFC 8701 */
     { SSL_HND_HELLO_EXT_GREASE_EAEA, "Reserved (GREASE)" }, /* RFC 8701 */
     { SSL_HND_HELLO_EXT_GREASE_FAFA, "Reserved (GREASE)" }, /* RFC 8701 */
-    { SSL_HND_HELLO_EXT_QUIC_TRANSPORT_PARAMETERS, "quic_transports_parameters" }, /* https://tools.ietf.org/html/draft-ietf-quic-tls */
+    { SSL_HND_HELLO_EXT_QUIC_TRANSPORT_PARAMETERS, "quic_transport_parameters" }, /* https://tools.ietf.org/html/draft-ietf-quic-tls */
     { SSL_HND_HELLO_EXT_ENCRYPTED_SERVER_NAME, "encrypted_server_name" }, /* https://tools.ietf.org/html/draft-ietf-tls-esni-01 */
     { 0, NULL }
 };
@@ -7443,6 +7443,7 @@ ssl_dissect_hnd_hello_ext_quic_transport_parameters(ssl_common_dissect_t *hf, tv
             break;
             case SSL_HND_QUIC_TP_PREFERRED_ADDRESS: {
                 guint32 connectionid_length;
+                quic_cid_t cid;
 
                 proto_tree_add_item(parameter_tree, hf->hf.hs_ext_quictp_parameter_pa_ipv4address,
                                     tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -7465,6 +7466,11 @@ ssl_dissect_hnd_hello_ext_quic_transport_parameters(ssl_common_dissect_t *hf, tv
 
                 proto_tree_add_item(parameter_tree, hf->hf.hs_ext_quictp_parameter_pa_connectionid,
                                     tvb, offset, connectionid_length, ENC_NA);
+                if (connectionid_length >= 1 && connectionid_length <= QUIC_MAX_CID_LENGTH) {
+                    cid.len = connectionid_length;
+                    tvb_memcpy(tvb, cid.cid, offset, connectionid_length);
+                    quic_add_connection(pinfo, &cid);
+                }
                 offset += connectionid_length;
 
                 proto_tree_add_item(parameter_tree, hf->hf.hs_ext_quictp_parameter_pa_statelessresettoken,

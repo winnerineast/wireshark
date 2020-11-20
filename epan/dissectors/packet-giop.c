@@ -1465,7 +1465,7 @@ static guint32 string_to_IOR(gchar *in, guint32 in_len, guint8 **out) {
   gint8   tmpval;        /* complete value */
   guint32 i;
 
-  *out = wmem_alloc0_array(wmem_packet_scope(), guint8, in_len); /* allocate buffer */
+  *out = wmem_alloc0_array(NULL, guint8, in_len); /* allocate buffer */
 
   if (*out == NULL) {
     return 0;
@@ -1528,7 +1528,7 @@ static void read_IOR_strings_from_file(const gchar *name, int max_iorlen) {
   int       len;
   int       ior_val_len;        /* length after unstringifying. */
   FILE     *fp;
-  guint8   *out;                /* ptr to unstringified IOR */
+  guint8   *out = NULL;         /* ptr to unstringified IOR */
   tvbuff_t *tvb;                /* temp tvbuff for dissectin IORs */
   int       my_offset = 0;
   gboolean  stream_is_big_endian;
@@ -1542,7 +1542,7 @@ static void read_IOR_strings_from_file(const gchar *name, int max_iorlen) {
     return;
   }
 
-  buf = (gchar *)wmem_alloc0(wmem_packet_scope(), max_iorlen+1);        /* input buf */
+  buf = (gchar *)wmem_alloc0(NULL, max_iorlen+1);        /* input buf */
 
   while ((len = giop_getline(fp, buf, max_iorlen+1)) > 0) {
     my_offset = 0;              /* reset for every IOR read */
@@ -1551,10 +1551,12 @@ static void read_IOR_strings_from_file(const gchar *name, int max_iorlen) {
 
     if (ior_val_len>0) {
 
-      /* XXX - can this throw an exception in this case?  If so, we
-         need to catch it and clean up, but we really shouldn't allow
-         it - or "get_CDR_octet()", or "decode_IOR()" - to throw an
-         exception. */
+      /* XXX - can this code throw an exception?  If so, we need to
+         catch it and clean up, but we really shouldn't allow it - or
+         "get_CDR_octet()", or "decode_IOR()" - to throw an exception.
+
+         Either that, or don't reuse dissector code when we're not
+         dissecting a packet. */
 
       tvb =  tvb_new_real_data(out, ior_val_len, ior_val_len);
 
@@ -1562,11 +1564,14 @@ static void read_IOR_strings_from_file(const gchar *name, int max_iorlen) {
       decode_IOR(tvb, NULL, NULL, &my_offset, 0, stream_is_big_endian);
 
       tvb_free(tvb);
-
     }
+
+    wmem_free(NULL, out);
   }
 
   fclose(fp);                   /* be nice */
+
+  wmem_free(NULL, buf);
 }
 
 
